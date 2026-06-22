@@ -87,11 +87,11 @@ to fill in by hand from any official bracket graphic.
 Proposed schema (used by both `fixtures.csv` and `test_bracket.csv`):
 
 ```text
-match_id,round,home_team,away_team,venue_city,venue_country,kickoff_date
-73,Round of 32,Group A runner-up,Group B runner-up,Los Angeles,United States,2026-06-28
-90,Round of 16,W73,W75,Houston,United States,2026-07-04
-103,Third Place,L101,L102,Miami Gardens,United States,2026-07-18
-104,Final,W101,W102,East Rutherford,United States,2026-07-19
+match_id,round,home_team,away_team,stadium,date
+1,Round of 32,Group A runners-up,Group B runners-up,Los Angeles Stadium,28-06-2026
+2,Round of 32,Group E winners,Group A/B/C/D/F third place,Boston Stadium,29-06-2026
+3,Round of 32,Group F winners,Group C runners-up,Estadio Monterrey,29-06-2026
+4,Round of 32,Group C winners,Group F runners-up,Houston Stadium,29-06-2026
 ```
 
 - `home_team`/`away_team`: either a literal team name (known for Round of 32, since the group stage is already decided) or a placeholder `W<match_id>` (winner of that match) / `L<match_id>` (loser — needed only for the third-place match).
