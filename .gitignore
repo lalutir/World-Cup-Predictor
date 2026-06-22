@@ -1,2 +1,9 @@
+# Ignore the data directory
 /data
+
+# Ignore the virtual environment directory
 /wc-predictor
+
+# Ignore Python cache files
+/src/__pycache__
+/src/data/__pycache__
