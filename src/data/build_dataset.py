@@ -68,6 +68,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from src.config import (
+    ELO_HISTORY_PATH,
     FORMER_NAMES_RAW,
     MATCHES_PROCESSED,
     PROCESSED_DIR,
@@ -81,6 +82,7 @@ from src.config import (
 )
 from src.data.fetch_results import fetch_all as _fetch_results
 from src.data.fetch_wdi import fetch_all as _fetch_wdi
+from src.features.elo import compute_elo
 
 # ---------------------------------------------------------------------------
 # Name mapping constants
@@ -334,14 +336,20 @@ def _merge_shootouts(
 
 
 def _load_wb_countries() -> set[str]:
-    """Return the set of ISO2 codes for genuine WB country entries.
+    """Return the set of WB country codes for genuine (non-aggregate) entries.
 
     The World Bank country-list endpoint mixes real economies with regional
     and income-group aggregates (e.g. "Africa Eastern and Southern").
     Genuine countries have ``region.value != "Aggregates"``.
 
+    The ``id`` field in the country-list response is the World Bank's own
+    3-letter code (ISO 3166-1 alpha-3 for sovereign states; custom codes such
+    as "EAS" or "EMU" for aggregate groups).  These 3-letter codes match the
+    ``countryiso3code`` field in the WDI indicator data, which is what
+    ``_load_wdi_raw`` uses for filtering.
+
     Returns:
-        Set of 2-letter ISO codes for non-aggregate entries.
+        Set of 3-letter WB country codes for non-aggregate entries.
     """
     with WB_COUNTRIES_RAW.open("r", encoding="utf-8") as fh:
         _, countries = json.load(fh)
@@ -356,19 +364,21 @@ def _load_wb_countries() -> set[str]:
 
 
 def _load_wdi_raw(
-    valid_iso2: set[str],
+    valid_country_codes: set[str],
 ) -> tuple[pd.DataFrame, dict[str, str]]:
     """Load the three WDI indicator JSON files into one long DataFrame.
 
     Also builds a WB country name → ISO3 mapping as a by-product of reading
     the JSON, so the caller doesn't have to open the files a second time.
 
-    Rows for WB aggregates (country.id not in *valid_iso2*) are excluded.
-    Rows with a null value for the indicator are retained — gaps are filled
-    in _build_wdi_panel.
+    Aggregate rows are excluded by checking ``countryiso3code`` (3-letter)
+    against *valid_country_codes*, which also contains 3-letter WB codes.
+    This is the correct field to use — ``country.id`` in the indicator data
+    is the 2-letter ISO2 code and does NOT match the 3-letter codes returned
+    by ``_load_wb_countries``.
 
     Args:
-        valid_iso2: Set of ISO2 codes from _load_wb_countries.
+        valid_country_codes: Set of 3-letter WB codes from _load_wb_countries.
 
     Returns:
         Tuple of:
@@ -388,10 +398,10 @@ def _load_wdi_raw(
 
         records: list[dict[str, Any]] = []
         for row in rows:
-            iso2 = row["country"]["id"]
-            iso3 = row["countryiso3code"]
+            iso3 = row["countryiso3code"]   # 3-letter — matches valid_country_codes
             wb_name = row["country"]["value"]
-            if iso2 not in valid_iso2 or not iso3:
+            # Exclude aggregate entries and rows with missing ISO3 codes
+            if not iso3 or iso3 not in valid_country_codes:
                 continue
             # Collect name → ISO3 mapping (first encounter wins)
             if wb_name and wb_name not in wb_name_to_iso3:
@@ -568,42 +578,51 @@ def _add_wdi_columns(
 def build() -> None:
     """Run the full dataset-combination pipeline and write matches.csv.
 
-    Always force-refreshes upstream raw data before processing.  The output
-    file is overwritten on every run so it stays current with the latest
-    match results from the upstream GitHub repository.
+    Always force-refreshes upstream raw data before processing.  Both output
+    files are overwritten on every run.
 
-    Output: data/processed/matches.csv
+    Outputs:
+        data/processed/elo_history.csv  — per-team Elo rating after each match
+        data/processed/matches.csv      — full combined dataset with Elo + WDI
     """
     # Step 1
     _refresh_raw_data()
 
     # Step 2
-    print("\n[2/6] Loading and cleaning match results …")
+    print("\n[2/7] Loading and cleaning match results …")
     results = _load_results()
 
     # Step 3
-    print("\n[3/6] Normalizing team names via former_names.csv …")
+    print("\n[3/7] Normalizing team names via former_names.csv …")
     former_names = _load_former_names()
     results = _normalize_names(results, former_names)
 
     # Step 4
-    print("\n[4/6] Merging shootout outcomes …")
+    print("\n[4/7] Merging shootout outcomes …")
     shootouts = _load_shootouts()
     matches = _merge_shootouts(results, shootouts)
 
-    # Steps 5–6
-    print("\n[5/6] Loading WDI economic data …")
-    valid_iso2 = _load_wb_countries()
-    wdi_raw, wb_name_to_iso3 = _load_wdi_raw(valid_iso2)
+    # Step 5 — Elo ratings
+    # compute_elo sorts matches chronologically and returns them in that order.
+    # The two new columns (home_elo_before, away_elo_before) use only data
+    # from matches that preceded each row — no lookahead.
+    print("\n[5/7] Computing Elo ratings …")
+    matches, elo_history = compute_elo(matches)
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    elo_history.to_csv(ELO_HISTORY_PATH, index=False, date_format="%Y-%m-%d")
+    print(f"    Written {len(elo_history):,} rows → {ELO_HISTORY_PATH.relative_to(_REPO_ROOT)}")
+
+    # Steps 6–7 — WDI economic data
+    print("\n[6/7] Loading WDI economic data …")
+    valid_country_codes = _load_wb_countries()
+    wdi_raw, wb_name_to_iso3 = _load_wdi_raw(valid_country_codes)
     name_to_iso3 = _build_name_to_iso3(wb_name_to_iso3)
     panel = _build_wdi_panel(wdi_raw)
 
-    # Step 7
-    print("\n[6/6] Joining economic data to matches …")
+    print("\n[7/7] Joining economic data to matches …")
     matches = _add_wdi_columns(matches, panel, name_to_iso3)
 
-    # Write output
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    # Write final output
     matches.to_csv(MATCHES_PROCESSED, index=False, date_format="%Y-%m-%d", encoding="utf-8")
 
     n_rows = len(matches)
