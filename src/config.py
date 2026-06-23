@@ -45,6 +45,8 @@ ELO_HISTORY_PATH: Path = PROCESSED_DIR / "elo_history.csv"
 TOURNAMENT_TIERS_PATH: Path = PROCESSED_DIR / "tournament_tiers.csv"
 COUNTRY_CROSSWALK_PATH: Path = PROCESSED_DIR / "country_crosswalk.csv"
 FEATURES_PATH: Path = PROCESSED_DIR / "features.parquet"
+MODEL_PATH: Path = PROCESSED_DIR / "model.pkl"
+SHOOTOUT_MODEL_PATH: Path = PROCESSED_DIR / "shootout_model.pkl"
 
 # Real 2026 knockout bracket.
 # Note: the repository currently has a fixture file at data/brackets/fixtures.csv
