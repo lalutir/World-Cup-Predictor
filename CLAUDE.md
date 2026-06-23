@@ -87,11 +87,11 @@ to fill in by hand from any official bracket graphic.
 Proposed schema (used by both `fixtures.csv` and `test_bracket.csv`):
 
 ```text
-match_id,round,home_team,away_team,stadium,date
-1,Round of 32,Group A runners-up,Group B runners-up,Los Angeles Stadium,28-06-2026
-2,Round of 32,Group E winners,Group A/B/C/D/F third place,Boston Stadium,29-06-2026
-3,Round of 32,Group F winners,Group C runners-up,Estadio Monterrey,29-06-2026
-4,Round of 32,Group C winners,Group F runners-up,Houston Stadium,29-06-2026
+match_id,round,home_team,away_team,venue_city,venue_country,kickoff_date
+73,Round of 32,Group A runner-up,Group B runner-up,Los Angeles,United States,2026-06-28
+90,Round of 16,W73,W75,Houston,United States,2026-07-04
+103,Third Place,L101,L102,Miami Gardens,United States,2026-07-18
+104,Final,W101,W102,East Rutherford,United States,2026-07-19
 ```
 
 - `home_team`/`away_team`: either a literal team name (known for Round of 32, since the group stage is already decided) or a placeholder `W<match_id>` (winner of that match) / `L<match_id>` (loser — needed only for the third-place match).
@@ -290,3 +290,126 @@ pytest
 - Confirm the real mar-antaya Elo constants (K-tiers, goal multiplier, home advantage) against the source repo and reconcile with the table above.
 - Decide the proxy-data policy per non-WDI footballing nation (inherit parent state's economic data? confederation average? leave null and let the model handle missingness?) — `crosswalk.py` needs one consistent rule, not ad hoc per-team choices.
 - Decide whether group-stage-resolved team names get fed into `fixtures.csv` by hand each time, or whether a future version should ingest a live group-stage results feed — out of scope for now, but worth a one-line note in `README.md` so it's not mistaken for an oversight.
+
+## Results Website — world-cup-simulator.lalutir.com
+
+A static results page built from `montecarlo.py`'s output, deployed to a subdomain of `lalutir.com`.
+
+### Hosting & DNS
+
+- `lalutir.com` is registered with DNS on Cloudflare, and existing traffic for the domain is routed
+  to a single droplet (origin server) that you already use for hosting.
+- New work needed: a DNS record for `world-cup-simulator.lalutir.com` in the Cloudflare dashboard —
+  either a `CNAME` to whatever hostname the droplet is already reachable at, or an `A` record
+  pointing straight at the droplet's IP. Match whatever record type/proxy status (orange-cloud
+  "Proxied" vs grey-cloud "DNS only") you're already using for your other subdomains, for
+  consistency; "Proxied" is the better default for a static page since it gets Cloudflare's
+  CDN/caching/TLS for free.
+- On the droplet itself, a server block/vhost needs to point that hostname at the directory this
+  site's build step writes to. Below assumes the droplet runs **nginx** (the common default) —
+  adjust if it's actually Apache or Caddy. This is unconfirmed, see [Open Questions](#open-questions-for-this-section-1) below.
+
+### Page Content
+
+**Table 1 — Championship odds, past winners only.** `P(team wins the tournament)` from
+`montecarlo.py`'s output, filtered to the teams that have actually won a World Cup before. That's
+a fixed list of 8 nations as of this tournament: **Argentina, Brazil, England, France, Germany,
+Italy, Spain, Uruguay**. Good news on the crosswalk front — checked `results.csv` directly, and
+unlike some other historical entities, Germany's pre- and post-reunification World Cup wins
+(1954/1974/1990) are already filed under the single label `"Germany"` (the separate, defunct East
+German team appears as `"German DR"`) — so this table doesn't need any extra name-merging beyond
+what `crosswalk.py` already does. Treat the 8-name list itself as a small manually-curated
+constant (`PAST_WORLD_CUP_WINNERS` in `src/config.py`) rather than deriving it from the data —
+it only needs to change if a first-time winner emerges from *this* tournament, and that's a
+one-line edit, not a query.
+
+**Table 2 — Furthest progress, all teams.** This is a direct rendering of the per-team output
+`montecarlo.py` already produces: each team's % chance of being eliminated in the Round of 32,
+Round of 16, quarter-finals, semi-finals, the final (runner-up), or winning it — the six buckets
+described in [Simulation Engine](#simulation-engine) above, which already sum to 100% per team.
+Sort by championship % descending. Worth adding one derived column for readability: **Most Likely
+Exit Round** (the argmax of the six probabilities for that team) — a single human-readable summary
+sitting next to the full breakdown, not a replacement for it.
+
+### Visualization & Metric Ideas (Beyond the Two Requested Tables)
+
+Core, low-effort, high-value:
+- Horizontal bar chart of the top ~15 teams by championship % — the full 32-team bar chart is too
+  noisy to read at a glance.
+- A heatmap/stacked-bar version of Table 2 (rounds across the top, teams down the side, shaded by
+  probability) — same data as Table 2, easier to scan visually.
+- A footer with run metadata: `n_sims = 1,000,000`, the data-as-of date, and "last updated"
+  timestamp. A public probability page with no provenance reads as less trustworthy.
+
+Nice-to-have, more build effort:
+- **A visual bracket**: render the actual `fixtures.csv` tree (reusing `bracket.py`/`templates.py`'s
+  structure) with each match annotated by the model's win probability — this is the single most
+  intuitive way to present a knockout simulation, more so than tables, but needs its own small SVG
+  generator in the build step rather than a generic charting library.
+- **Model vs. Elo divergence**: a small table or scatter highlighting teams where the simulated
+  championship odds diverge most from a naive ranking by current Elo alone — surfaces the
+  "value picks" the fuller model sees that Elo alone wouldn't.
+- **Confederation rollup**: combined probability that *some* UEFA / CONMEBOL / CONCACAF / CAF / AFC
+  / OFC team wins it. Needs a new team→confederation lookup table that doesn't exist yet anywhere
+  in this repo — small addition to `crosswalk.py` if you want this one.
+- **Live re-runs during the tournament**: re-run `montecarlo.py` after each real knockout result,
+  treating already-finished matches in `fixtures.csv` as locked/deterministic and simulating only
+  what's left, then rebuild and redeploy the site. Otherwise the published percentages go stale the
+  moment the real bracket starts diverging from "hasn't happened yet." This is a deliberate
+  enhancement to flag, not something to silently assume — see the note in
+  [Simulation Engine](#simulation-engine) about Elo being frozen for a given run; that assumption
+  is still fine here, you're just choosing *when* to kick off a new run.
+
+### Build & Deploy Architecture
+
+Recommend keeping this a fully static page — no backend/server process needed for a once- or
+few-times-a-day rebuild:
+
+```text
+src/
+└── site/
+    ├── build_site.py        # reads montecarlo.py's output, renders templates, writes site/
+    └── templates/
+        └── index.html.j2    # Jinja2 template; Chart.js via CDN for the bar/heatmap visuals
+site/                         # generated output — gitignored, this is what gets deployed
+├── index.html
+├── assets/
+│   └── style.css
+└── data/
+    └── results.json
+scripts/
+└── deploy_site.sh            # rsync/scp site/ to the droplet, into the nginx-served path
+```
+
+- `build_site.py` writes `site/data/results.json` as the single source of truth the page's charts
+  read from, e.g.:
+  ```json
+  {
+    "generated_at": "2026-06-28T10:00:00Z",
+    "n_sims": 1000000,
+    "teams": [
+      {"team": "Brazil", "is_past_winner": true,
+       "p_r32_exit": 0.08, "p_r16_exit": 0.18, "p_qf_exit": 0.27,
+       "p_sf_exit": 0.22, "p_runner_up": 0.10, "p_champion": 0.15}
+    ]
+  }
+  ```
+  Same six buckets as `montecarlo.py`'s output, just JSON-serialized with a small metadata header.
+- Use Jinja2 to bake the HTML at build time (tables render server-side at build, charts read the
+  JSON client-side) rather than a JS framework — there's no interactivity here that needs one.
+- `deploy_site.sh` is a thin rsync/scp-over-SSH step; no CI/CD platform assumed, but this is a
+  natural fit for a GitHub Action later if you want pushes to auto-deploy.
+
+### Constants for This Section
+
+- `PAST_WORLD_CUP_WINNERS = ["Argentina", "Brazil", "England", "France", "Germany", "Italy", "Spain", "Uruguay"]` — manually curated, see Table 1 above.
+- Subdomain: `world-cup-simulator.lalutir.com`.
+
+### Open Questions for This Section
+
+- Which web server is actually running on the droplet (nginx assumed above), and what's the
+  existing convention for adding a new subdomain's document root / vhost there?
+- DNS record type and proxy status to match your existing subdomains (CNAME vs A, proxied vs DNS-only).
+- Rebuild cadence: manual trigger, a cron job, or rebuilding on every real knockout result (see the
+  "live re-runs" idea above) — affects whether `deploy_site.sh` needs to be wired into anything
+  beyond a manual run.
