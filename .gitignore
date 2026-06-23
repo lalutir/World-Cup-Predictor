@@ -9,3 +9,7 @@
 /src/data/__pycache__
 /src/features/__pycache__
 /src/predictor/__pycache__
+/src/bracket/__pycache__
+/src/simulator/__pycache__
+
+/tests/__pycache__
