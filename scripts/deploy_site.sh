@@ -25,7 +25,7 @@
 
 set -euo pipefail
 
-DROPLET_USER="${DROPLET_USER:-root}"
+DROPLET_USER="${DROPLET_USER:-lalutir}"
 DROPLET_HOST="${DROPLET_HOST:?Error: DROPLET_HOST is not set. Run: DROPLET_HOST=<ip-or-hostname> bash scripts/deploy_site.sh}"
 REMOTE_PATH="${REMOTE_PATH:-/var/www/world-cup-simulation}"
 SSH_KEY="${SSH_KEY:-}"
@@ -56,11 +56,9 @@ echo "────────────────────────�
 # shellcheck disable=SC2086
 ssh $SSH_OPTS "${TARGET}" "mkdir -p ${REMOTE_PATH}"
 
-# Sync the generated site to the droplet, deleting stale remote files
+# Copy site files to the droplet
 # shellcheck disable=SC2086
-rsync -avz --delete -e "ssh ${SSH_OPTS}" \
-  "${SITE_DIR}/" \
-  "${TARGET}:${REMOTE_PATH}/"
+scp -r $SSH_OPTS "${SITE_DIR}/." "${TARGET}:${REMOTE_PATH}/"
 
 echo ""
 echo "Deploy complete."
@@ -68,51 +66,15 @@ echo "Visit: https://world-cup-simulation.lalutir.com"
 echo ""
 
 # ── First-time nginx instructions ─────────────────────────────────────────────
-# shellcheck disable=SC2086
-if ssh $SSH_OPTS "${TARGET}" \
-  "test ! -f /etc/nginx/sites-available/world-cup-simulation" 2>/dev/null; then
-
-  # shellcheck disable=SC2086
-  DROPLET_IP="$(ssh $SSH_OPTS "${TARGET}" "curl -sf ifconfig.me" 2>/dev/null || echo "<droplet-ip>")"
-
-  cat <<SETUP
-
-──────────────────────────────────────────────────────
-First-time setup: nginx not yet configured for this subdomain.
-Run the following ON THE DROPLET (ssh ${TARGET}):
-──────────────────────────────────────────────────────
-
-# 1. Create the nginx server block
-cat > /etc/nginx/sites-available/world-cup-simulation << 'NGINX'
-server {
-    listen 80;
-    listen [::]:80;
-    server_name world-cup-simulation.lalutir.com;
-    root ${REMOTE_PATH};
-    index index.html;
-
-    location / {
-        try_files \$uri \$uri/ /index.html;
-    }
-
-    # Cloudflare handles TLS when the record is "Proxied" (orange cloud).
-    # If using grey-cloud / DNS-only, add certbot TLS here instead.
-}
-NGINX
-
-# 2. Enable the site
-ln -sf /etc/nginx/sites-available/world-cup-simulation \
-        /etc/nginx/sites-enabled/world-cup-simulation
-
-# 3. Test & reload nginx
-nginx -t && systemctl reload nginx
-
-──────────────────────────────────────────────────────
-Then add a DNS record in Cloudflare:
-  Type:    A
-  Name:    world-cup-simulation
-  Content: ${DROPLET_IP}
-  Proxy:   Proxied (orange cloud) — recommended for CDN + free TLS
-──────────────────────────────────────────────────────
-SETUP
-fi
+echo ""
+echo "If this is the first deploy, ensure Caddy is configured on the droplet:"
+echo "  sudo tee -a /etc/caddy/Caddyfile << 'EOF'"
+echo "  world-cup-simulation.lalutir.com {"
+echo "      root * ${REMOTE_PATH}"
+echo "      file_server"
+echo "  }"
+echo "  EOF"
+echo "  sudo systemctl reload caddy"
+echo ""
+echo "And add a Cloudflare DNS A record:"
+echo "  Name: world-cup-simulation  Content: ${DROPLET_HOST}  Proxy: Proxied (orange cloud)"
