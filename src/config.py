@@ -160,3 +160,19 @@ N_SIMS: int = 1_000_000
 # Fixed seed for numpy.random.Generator(PCG64(RNG_SEED)) — ensures
 # reproducible outputs when the same feature snapshot is used.
 RNG_SEED: int = 42
+
+# ---------------------------------------------------------------------------
+# Site constants
+# ---------------------------------------------------------------------------
+
+# Generated static site (gitignored — this is what gets deployed).
+SITE_DIR: Path = REPO_ROOT / "site"
+SITE_DATA_DIR: Path = SITE_DIR / "data"
+SITE_TEMPLATES_DIR: Path = REPO_ROOT / "src" / "site" / "templates"
+
+# Manually curated list of past FIFA World Cup winners.
+# Only needs updating if a first-time winner emerges from this tournament.
+PAST_WORLD_CUP_WINNERS: list[str] = [
+    "Argentina", "Brazil", "England", "France",
+    "Germany", "Italy", "Spain", "Uruguay",
+]

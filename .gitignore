@@ -13,3 +13,9 @@
 /src/simulator/__pycache__
 
 /tests/__pycache__
+
+# Generated static site (deployed via scripts/deploy_site.sh)
+/site
+
+# Site builder cache
+/src/site/__pycache__

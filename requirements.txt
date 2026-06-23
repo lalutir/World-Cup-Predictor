@@ -5,3 +5,4 @@ scikit-learn>=1.4
 pytest>=8.0
 tqdm>=4.66
 python-dateutil>=2.9
+jinja2>=3.1

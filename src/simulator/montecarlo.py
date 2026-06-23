@@ -479,6 +479,11 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help=f"Random seed for reproducibility (default: {RNG_SEED})",
     )
+    p.add_argument(
+        "--no-site",
+        action="store_true",
+        help="Skip building the static HTML dashboard after simulation",
+    )
     return p
 
 
@@ -508,5 +513,15 @@ if __name__ == "__main__":
         out_path = Path(args.output)
         results.to_csv(out_path, index=False)
         print(f"\nResults saved → {out_path}")
+
+    # Step 5: Build static dashboard (skippable with --no-site)
+    if not args.no_site:
+        print("\n[Pipeline 4/4] Building static dashboard …")
+        try:
+            from src.site.build_site import build_site
+            build_site(results, n_sims=args.n)
+        except ImportError as exc:
+            print(f"  Skipped (missing dependency): {exc}")
+            print("  Install with: pip install jinja2")
 
     print("\nDone.")

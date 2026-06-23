@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2026 FIFA World Cup Predictor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #0f172a;
+      --surface:      #1e293b;
+      --surface-alt:  #162032;
+      --border:       #334155;
+      --text:         #f1f5f9;
+      --text-muted:   #94a3b8;
+      --green:        #22c55e;
+      --gold:         #f59e0b;
+      --blue:         #3b82f6;
+      --red:          #ef4444;
+      --orange:       #f97316;
+      --yellow:       #eab308;
+      --cyan:         #06b6d4;
+      --purple:       #a855f7;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                   'Helvetica Neue', Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────── */
+    .container { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── Header ───────────────────────────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, #0a1628 0%, #1a2f5a 50%, #0f2a4a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 36px 0 28px;
+    }
+
+    .header-inner {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .header-title h1 {
+      font-size: 1.9rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .header-title h1 .accent { color: var(--gold); }
+
+    .header-title .subtitle {
+      margin-top: 6px;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    .header-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .pill-green {
+      background: rgba(34,197,94,.12);
+      border: 1px solid rgba(34,197,94,.3);
+      color: var(--green);
+    }
+
+    .pill-gold {
+      background: rgba(245,158,11,.12);
+      border: 1px solid rgba(245,158,11,.3);
+      color: var(--gold);
+    }
+
+    .header-meta {
+      text-align: right;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.8;
+    }
+
+    .header-meta strong { color: var(--text); font-size: 1rem; }
+
+    /* ── Nav bar ──────────────────────────────────────────────── */
+    .nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .nav-inner {
+      display: flex;
+      gap: 0;
+      overflow-x: auto;
+    }
+
+    .nav a {
+      padding: 14px 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-decoration: none;
+      white-space: nowrap;
+      border-bottom: 2px solid transparent;
+      transition: color .15s, border-color .15s;
+    }
+
+    .nav a:hover { color: var(--text); border-bottom-color: var(--border); }
+
+    /* ── Sections ─────────────────────────────────────────────── */
+    .section {
+      padding: 48px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section:last-of-type { border-bottom: none; }
+
+    .section-header { margin-bottom: 28px; }
+
+    .section-header h2 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .section-header .desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .section-header .desc .star { color: var(--gold); }
+
+    /* ── Chart ────────────────────────────────────────────────── */
+    .chart-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    #champChart { display: block; }
+
+    /* ── Tables ───────────────────────────────────────────────── */
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+
+    thead th {
+      background: var(--surface);
+      padding: 11px 16px;
+      text-align: left;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    thead th:hover { color: var(--text); }
+
+    thead th[data-dir="asc"]::after  { content: " \2191"; color: var(--green); }
+    thead th[data-dir="desc"]::after { content: " \2193"; color: var(--green); }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(51,65,85,.45);
+      transition: background .1s;
+    }
+
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover      { background: rgba(255,255,255,.035); }
+    tbody tr:nth-child(even) { background: rgba(255,255,255,.018); }
+
+    td {
+      padding: 9px 16px;
+      vertical-align: middle;
+    }
+
+    td.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-muted);
+    }
+
+    td.num strong { color: var(--text); }
+
+    /* ── Team name cell ───────────────────────────────────────── */
+    .team-name {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .team-name .star { color: var(--gold); font-size: .7rem; }
+
+    /* ── Progress bar cell ────────────────────────────────────── */
+    .prog {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 110px;
+    }
+
+    .prog-track {
+      flex: 1;
+      height: 5px;
+      background: rgba(51,65,85,.8);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .prog-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #3b82f6 0%, #22c55e 100%);
+    }
+
+    .prog-pct {
+      font-size: .79rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      min-width: 46px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Round badge ──────────────────────────────────────────── */
+    .badge-round {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: .75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+
+    /* ── Footer ───────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 0;
+    }
+
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: .78rem;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 640px) {
+      .header-title h1 { font-size: 1.4rem; }
+      .header-meta { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────── -->
+<header class="header">
+  <div class="container">
+    <div class="header-inner">
+      <div class="header-title">
+        <h1>2026 FIFA World Cup <span class="accent">Predictor</span></h1>
+        <div class="subtitle">Knockout phase Monte Carlo simulation &mdash; Round of 32 through Final</div>
+        <div class="header-pills">
+          <span class="pill pill-green">{{ n_sims_fmt }} simulations</span>
+          <span class="pill pill-gold">&#9733; = past World Cup winner</span>
+        </div>
+      </div>
+      <div class="header-meta">
+        <div>Generated</div>
+        <strong>{{ generated_at }}</strong>
+        <div style="margin-top:4px;font-size:.72rem">world-cup-simulation.lalutir.com</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ── Navigation ─────────────────────────────────────────────── -->
+<nav class="nav">
+  <div class="container">
+    <div class="nav-inner">
+      <a href="#champ">Championship Odds</a>
+      <a href="#progress">How Far Each Team Went</a>
+      <a href="#exit">Most Common Exit Round</a>
+      <a href="#full">Full Breakdown</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+<!-- ── Section 1: Championship Odds ──────────────────────────── -->
+<section class="section" id="champ">
+  <div class="container">
+    <div class="section-header">
+      <h2>Championship Odds</h2>
+      <p class="desc">
+        Probability of winning the 2026 FIFA World Cup, from {{ n_sims_fmt }} simulated brackets.
+        <span class="star">&#9733;</span> marks past World Cup winners.
+      </p>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="champCanvas"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- ── Section 2: How Far Each Team Went ─────────────────────── -->
+<section class="section" id="progress">
+  <div class="container">
+    <div class="section-header">
+      <h2>How Far Each Team Went</h2>
+      <p class="desc">
+        Cumulative probability of advancing to each round. A team that exits in the
+        Quarter-final still counts toward &ldquo;Reach R16&rdquo; and &ldquo;Reach QF.&rdquo;
+        Click any column header to sort.
+      </p>
+    </div>
+    <div class="table-wrap">
+      <table id="advTable">
+        <thead>
+          <tr>
+            <th data-col="0" data-type="s">Team</th>
+            <th data-col="1" data-type="n">Reach R16</th>
+            <th data-col="2" data-type="n">Reach QF</th>
+            <th data-col="3" data-type="n">Reach SF</th>
+            <th data-col="4" data-type="n">Reach Final</th>
+            <th data-col="5" data-type="n">Win It</th>
+          </tr>
+        </thead>
+        <tbody id="advBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── Section 3: Most Common Exit ───────────────────────────── -->
+<section class="section" id="exit">
+  <div class="container">
+    <div class="section-header">
+      <h2>Most Common Finishing Round</h2>
+      <p class="desc">
+        The single round where each team most frequently finishes across all simulations &mdash;
+        i.e., the mode of the outcome distribution. Click column headers to sort.
+      </p>
+    </div>
+    <div class="table-wrap">
+      <table id="exitTable">
+        <thead>
+          <tr>
+            <th data-col="0" data-type="s">Team</th>
+            <th data-col="1" data-type="s">Most Common Finish</th>
+            <th data-col="2" data-type="n">In this % of sims</th>
+          </tr>
+        </thead>
+        <tbody id="exitBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── Section 4: Full Breakdown ─────────────────────────────── -->
+<section class="section" id="full">
+  <div class="container">
+    <div class="section-header">
+      <h2>Full Probability Breakdown</h2>
+      <p class="desc">
+        Complete exit-round distribution for every team. Each row sums to 100%.
+        <em>Exit R32</em> = lost in Round of 32; <em>3rd Place</em> = won the third-place play-off.
+        Click column headers to sort.
+      </p>
+    </div>
+    <div class="table-wrap">
+      <table id="fullTable">
+        <thead>
+          <tr>
+            <th data-col="0" data-type="s">Team</th>
+            <th data-col="1" data-type="n">Exit R32</th>
+            <th data-col="2" data-type="n">Exit R16</th>
+            <th data-col="3" data-type="n">Exit QF</th>
+            <th data-col="4" data-type="n">Exit SF</th>
+            <th data-col="5" data-type="n">3rd Place</th>
+            <th data-col="6" data-type="n">Runner-up</th>
+            <th data-col="7" data-type="n">Champion</th>
+          </tr>
+        </thead>
+        <tbody id="fullBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <span>{{ n_sims_fmt }} Monte Carlo simulations &mdash; knockout phase only (Round of 32 onward)</span>
+      <span>Data: martj42/international_results &bull; World Bank WDI &bull; {{ generated_at }}</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ── Embedded simulation data ────────────────────────────────────────────────
+const DATA = {{ data_json | safe }};
+
+// ── Round badge colours ─────────────────────────────────────────────────────
+const ROUND_STYLE = {
+  "Round of 32":   { bg: "rgba(220,38,38,.13)",  border: "rgba(220,38,38,.35)",  text: "#f87171" },
+  "Round of 16":   { bg: "rgba(234,88,12,.13)",  border: "rgba(234,88,12,.35)",  text: "#fb923c" },
+  "Quarter-final": { bg: "rgba(202,138,4,.13)",  border: "rgba(202,138,4,.35)",  text: "#facc15" },
+  "Semi-final":    { bg: "rgba(59,130,246,.13)", border: "rgba(59,130,246,.35)", text: "#60a5fa" },
+  "3rd Place":     { bg: "rgba(6,182,212,.13)",  border: "rgba(6,182,212,.35)",  text: "#22d3ee" },
+  "Runner-up":     { bg: "rgba(148,163,184,.13)",border: "rgba(148,163,184,.35)","text": "#cbd5e1" },
+  "Champion":      { bg: "rgba(245,158,11,.16)", border: "rgba(245,158,11,.45)", text: "#fbbf24" },
+};
+
+// Round sort order (for sorting by round name)
+const ROUND_ORDER = [
+  "Round of 32","Round of 16","Quarter-final","Semi-final","3rd Place","Runner-up","Champion"
+];
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function teamCell(team, isPastWinner) {
+  const star = isPastWinner
+    ? `<span class="star" title="Past World Cup winner">&#9733;</span>`
+    : "";
+  return `<td><div class="team-name">${star}${team}</div></td>`;
+}
+
+function progCell(value) {
+  const pct = Math.min(100, Math.max(0, value));
+  const fillW = pct.toFixed(2);
+  const label = pct < 0.01 ? "<0.01%" : pct.toFixed(2) + "%";
+  return `<td><div class="prog">
+    <div class="prog-track"><div class="prog-fill" style="width:${fillW}%"></div></div>
+    <span class="prog-pct">${label}</span>
+  </div></td>`;
+}
+
+function roundBadge(label) {
+  const s = ROUND_STYLE[label] || {};
+  return `<span class="badge-round" style="background:${s.bg||"#1e293b"};border-color:${s.border||"#334155"};color:${s.text||"#94a3b8"}">${label}</span>`;
+}
+
+function numCell(v, bold) {
+  const s = v < 0.01 ? "&lt;0.01" : v.toFixed(2);
+  return `<td class="num">${bold ? `<strong>${s}%</strong>` : s + "%"}</td>`;
+}
+
+// ── Chart: Championship Odds ─────────────────────────────────────────────────
+(function buildChampChart() {
+  const sorted = [...DATA.teams].sort((a, b) => b.champion - a.champion);
+  const labels = sorted.map(t => t.team);
+  const values = sorted.map(t => t.champion);
+  const bgColors = sorted.map(t =>
+    t.is_past_winner ? "rgba(245,158,11,.8)" : "rgba(34,197,94,.72)"
+  );
+  const borderColors = sorted.map(t =>
+    t.is_past_winner ? "#f59e0b" : "#22c55e"
+  );
+
+  // Dynamic height: ~26px per bar + fixed overhead
+  const chartH = Math.max(480, sorted.length * 26 + 64);
+  const canvas = document.getElementById("champCanvas");
+  canvas.style.height = chartH + "px";
+
+  new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: bgColors,
+        borderColor: borderColors,
+        borderWidth: 1,
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: ctx => ctx[0].label,
+            label: ctx => ` ${ctx.raw.toFixed(2)}% chance of winning`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid:   { color: "rgba(51,65,85,.5)" },
+          border: { color: "#334155" },
+          ticks:  { color: "#94a3b8", callback: v => v + "%" },
+          title:  { display: true, text: "Championship probability (%)", color: "#64748b", font: { size: 11 } },
+        },
+        y: {
+          grid:   { display: false },
+          border: { color: "#334155" },
+          ticks: {
+            color: (ctx) => {
+              const t = sorted[ctx.index];
+              return t && t.is_past_winner ? "#f59e0b" : "#f1f5f9";
+            },
+            font: { size: 12 },
+          },
+        },
+      },
+    },
+  });
+})();
+
+// ── Table: How Far Each Team Went ────────────────────────────────────────────
+(function buildAdvTable() {
+  const body = document.getElementById("advBody");
+  DATA.teams.forEach(t => {
+    const tr = document.createElement("tr");
+    // Store numeric sort values as data attributes on cells
+    tr.innerHTML =
+      teamCell(t.team, t.is_past_winner) +
+      progCell(t.p_reach_r16) +
+      progCell(t.p_reach_qf) +
+      progCell(t.p_reach_sf) +
+      progCell(t.p_reach_final) +
+      progCell(t.champion);
+    // Tag cells with raw values for sorting
+    const cells = tr.querySelectorAll("td");
+    cells[1].dataset.val = t.p_reach_r16;
+    cells[2].dataset.val = t.p_reach_qf;
+    cells[3].dataset.val = t.p_reach_sf;
+    cells[4].dataset.val = t.p_reach_final;
+    cells[5].dataset.val = t.champion;
+    body.appendChild(tr);
+  });
+})();
+
+// ── Table: Most Common Exit ──────────────────────────────────────────────────
+(function buildExitTable() {
+  const body = document.getElementById("exitBody");
+  DATA.teams.forEach(t => {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      teamCell(t.team, t.is_past_winner) +
+      `<td data-val="${ROUND_ORDER.indexOf(t.most_likely_exit)}">${roundBadge(t.most_likely_exit)}</td>` +
+      `<td class="num" data-val="${t.most_likely_exit_pct}">${t.most_likely_exit_pct.toFixed(2)}%</td>`;
+    body.appendChild(tr);
+  });
+})();
+
+// ── Table: Full Breakdown ────────────────────────────────────────────────────
+(function buildFullTable() {
+  const body = document.getElementById("fullBody");
+  DATA.teams.forEach(t => {
+    const tr = document.createElement("tr");
+    const buckets = [t.exit_r32, t.exit_r16, t.exit_qf, t.exit_sf, t.third_place, t.runner_up, t.champion];
+    const maxVal  = Math.max(...buckets);
+    tr.innerHTML =
+      teamCell(t.team, t.is_past_winner) +
+      buckets.map((v, i) => {
+        const cells = tr.querySelectorAll ? null : null; // placeholder
+        return `<td class="num" data-val="${v}">${v === maxVal ? `<strong>${v < 0.01 ? "&lt;0.01" : v.toFixed(2)}%</strong>` : (v < 0.01 ? "&lt;0.01%" : v.toFixed(2) + "%")}</td>`;
+      }).join("");
+    body.appendChild(tr);
+  });
+})();
+
+// ── Sortable tables ──────────────────────────────────────────────────────────
+document.querySelectorAll("table").forEach(table => {
+  table.querySelectorAll("thead th").forEach(th => {
+    th.addEventListener("click", () => {
+      const col   = parseInt(th.dataset.col, 10);
+      const type  = th.dataset.type; // "s" = string, "n" = number
+      const tbody = table.querySelector("tbody");
+      const rows  = Array.from(tbody.querySelectorAll("tr"));
+
+      // Toggle direction; default to desc on first click
+      const curDir = th.dataset.dir;
+      const dir = curDir === "desc" ? "asc" : "desc";
+
+      // Clear all headers in this table, then set this one
+      table.querySelectorAll("thead th").forEach(h => delete h.dataset.dir);
+      th.dataset.dir = dir;
+
+      rows.sort((a, b) => {
+        const aCells = a.querySelectorAll("td");
+        const bCells = b.querySelectorAll("td");
+        const aCell  = aCells[col];
+        const bCell  = bCells[col];
+
+        let aVal, bVal;
+        if (type === "n") {
+          // Prefer data-val attribute (set explicitly); fall back to text
+          aVal = parseFloat(aCell?.dataset.val ?? aCell?.textContent ?? "0") || 0;
+          bVal = parseFloat(bCell?.dataset.val ?? bCell?.textContent ?? "0") || 0;
+          return dir === "asc" ? aVal - bVal : bVal - aVal;
+        } else {
+          aVal = (aCell?.textContent ?? "").trim().replace(/★/g, "").trim();
+          bVal = (bCell?.textContent ?? "").trim().replace(/★/g, "").trim();
+          // For round names, use ROUND_ORDER if available
+          const aIdx = ROUND_ORDER.indexOf(aVal);
+          const bIdx = ROUND_ORDER.indexOf(bVal);
+          if (aIdx >= 0 && bIdx >= 0) {
+            return dir === "asc" ? aIdx - bIdx : bIdx - aIdx;
+          }
+          return dir === "asc"
+            ? aVal.localeCompare(bVal)
+            : bVal.localeCompare(aVal);
+        }
+      });
+
+      rows.forEach(r => tbody.appendChild(r));
+    });
+  });
+});
+</script>
+
+</body>
+</html>
