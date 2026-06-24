@@ -24,7 +24,7 @@ set -euo pipefail
 
 DROPLET_USER="${DROPLET_USER:-lalutir}"
 DROPLET_HOST="${DROPLET_HOST:?Error: DROPLET_HOST is not set. Run: DROPLET_HOST=<ip-or-hostname> bash scripts/deploy_site.sh}"
-REMOTE_PATH="${REMOTE_PATH:-/home/lalutir/world-cup-simulator}"
+REMOTE_PATH="${REMOTE_PATH:-/home/lalutir/world-cup-predictor}"
 SSH_KEY="${SSH_KEY:-}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -65,4 +65,4 @@ ssh $SSH_OPTS "${TARGET}" "sudo mv /tmp/world-cup.caddy /etc/caddy/conf.d/world-
 
 echo ""
 echo "Deploy complete."
-echo "Visit: https://world-cup-simulator.lalutir.com"
+echo "Visit: https://world-cup-simulation.lalutir.com"

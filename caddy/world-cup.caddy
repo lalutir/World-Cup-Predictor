@@ -1,4 +1,4 @@
-world-cup-simulator.lalutir.com {
-    root * /home/lalutir/world-cup-simulator
+world-cup-simulation.lalutir.com {
+    root * /home/lalutir/world-cup-predictor
     file_server
 }
