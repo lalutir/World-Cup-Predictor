@@ -14,20 +14,17 @@
 # ── Configuration ──────────────────────────────────────────────────────────────
 #   Override any variable by setting it as an environment variable before running.
 #
-#   DROPLET_USER   SSH username on the droplet          (default: root)
+#   DROPLET_USER   SSH username on the droplet          (default: lalutir)
 #   DROPLET_HOST   Droplet IP address or hostname       (REQUIRED)
-#   REMOTE_PATH    Absolute path nginx serves the site  (default: /var/www/world-cup-simulation)
+#   REMOTE_PATH    Absolute path Caddy serves the site  (default: /home/lalutir/world-cup-simulator)
 #   SSH_KEY        Path to your private SSH key         (optional — omit if ssh-agent handles it)
-#
-# ── First-time nginx setup (run once on the droplet) ──────────────────────────
-#   See the printed instructions at the bottom of a first-run deploy.
 # ──────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 
 DROPLET_USER="${DROPLET_USER:-lalutir}"
 DROPLET_HOST="${DROPLET_HOST:?Error: DROPLET_HOST is not set. Run: DROPLET_HOST=<ip-or-hostname> bash scripts/deploy_site.sh}"
-REMOTE_PATH="${REMOTE_PATH:-/var/www/world-cup-simulation}"
+REMOTE_PATH="${REMOTE_PATH:-/home/lalutir/world-cup-simulator}"
 SSH_KEY="${SSH_KEY:-}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -52,29 +49,20 @@ echo "────────────────────────�
 echo "Deploying to ${TARGET}:${REMOTE_PATH}"
 echo "──────────────────────────────────────────────────────"
 
-# Ensure the remote directory exists
+# Ensure the remote directories exist
 # shellcheck disable=SC2086
-ssh $SSH_OPTS "${TARGET}" "mkdir -p ${REMOTE_PATH}"
+ssh $SSH_OPTS "${TARGET}" "mkdir -p ${REMOTE_PATH} && sudo mkdir -p /etc/caddy/conf.d"
 
-# Copy site files to the droplet
+# Copy site files
 # shellcheck disable=SC2086
 scp -r $SSH_OPTS "${SITE_DIR}/." "${TARGET}:${REMOTE_PATH}/"
 
+# Deploy the Caddy snippet and reload
+# shellcheck disable=SC2086
+scp $SSH_OPTS "${REPO_ROOT}/caddy/world-cup.caddy" "${TARGET}:/tmp/world-cup.caddy"
+# shellcheck disable=SC2086
+ssh $SSH_OPTS "${TARGET}" "sudo mv /tmp/world-cup.caddy /etc/caddy/conf.d/world-cup.caddy && caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy"
+
 echo ""
 echo "Deploy complete."
-echo "Visit: https://world-cup-simulation.lalutir.com"
-echo ""
-
-# ── First-time nginx instructions ─────────────────────────────────────────────
-echo ""
-echo "If this is the first deploy, ensure Caddy is configured on the droplet:"
-echo "  sudo tee -a /etc/caddy/Caddyfile << 'EOF'"
-echo "  world-cup-simulation.lalutir.com {"
-echo "      root * ${REMOTE_PATH}"
-echo "      file_server"
-echo "  }"
-echo "  EOF"
-echo "  sudo systemctl reload caddy"
-echo ""
-echo "And add a Cloudflare DNS A record:"
-echo "  Name: world-cup-simulation  Content: ${DROPLET_HOST}  Proxy: Proxied (orange cloud)"
+echo "Visit: https://world-cup-simulator.lalutir.com"
