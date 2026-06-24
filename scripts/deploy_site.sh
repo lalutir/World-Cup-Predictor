@@ -16,8 +16,13 @@
 #
 #   DROPLET_USER   SSH username on the droplet          (default: lalutir)
 #   DROPLET_HOST   Droplet IP address or hostname       (REQUIRED)
-#   REMOTE_PATH    Absolute path Caddy serves the site  (default: /home/lalutir/world-cup-simulator)
+#   REMOTE_PATH    Absolute path Caddy serves the site  (default: /home/lalutir/world-cup-predictor)
 #   SSH_KEY        Path to your private SSH key         (optional — omit if ssh-agent handles it)
+#
+# ── First-time Caddy setup (run once manually on the droplet) ─────────────────
+#   sudo mkdir -p /etc/caddy/conf.d
+#   sudo cp /path/to/caddy/world-cup.caddy /etc/caddy/conf.d/world-cup.caddy
+#   sudo systemctl reload caddy
 # ──────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -49,19 +54,13 @@ echo "────────────────────────�
 echo "Deploying to ${TARGET}:${REMOTE_PATH}"
 echo "──────────────────────────────────────────────────────"
 
-# Ensure the remote directories exist
+# Ensure the remote directory exists (no sudo needed — lalutir owns its home)
 # shellcheck disable=SC2086
-ssh $SSH_OPTS "${TARGET}" "mkdir -p ${REMOTE_PATH} && sudo mkdir -p /etc/caddy/conf.d"
+ssh $SSH_OPTS "${TARGET}" "mkdir -p ${REMOTE_PATH}"
 
 # Copy site files
 # shellcheck disable=SC2086
 scp -r $SSH_OPTS "${SITE_DIR}/." "${TARGET}:${REMOTE_PATH}/"
-
-# Deploy the Caddy snippet and reload
-# shellcheck disable=SC2086
-scp $SSH_OPTS "${REPO_ROOT}/caddy/world-cup.caddy" "${TARGET}:/tmp/world-cup.caddy"
-# shellcheck disable=SC2086
-ssh $SSH_OPTS "${TARGET}" "sudo mv /tmp/world-cup.caddy /etc/caddy/conf.d/world-cup.caddy && caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy"
 
 echo ""
 echo "Deploy complete."
