@@ -36,8 +36,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SITE_DIR="${REPO_ROOT}/site"
 
 # ── Pre-flight checks ──────────────────────────────────────────────────────────
-if [[ ! -f "${SITE_DIR}/index.html" ]]; then
-  echo "Error: ${SITE_DIR}/index.html not found."
+if [[ ! -f "${SITE_DIR}/current/index.html" ]]; then
+  echo "Error: ${SITE_DIR}/current/index.html not found."
   echo "Build the dashboard first:"
   echo "  python -m src.simulator.montecarlo"
   exit 1
