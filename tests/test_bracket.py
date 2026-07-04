@@ -269,3 +269,20 @@ def test_frontier_defaults_to_round_of_32_when_nothing_resolved():
     ]
     resolver = BracketResolver(matches)
     assert resolver.detect_frontier_round() == "Round of 32"
+
+
+def test_frontier_advances_past_a_round_removed_after_resolving():
+    """Once a round fully resolves in real life, fixtures.csv may have its
+    rows removed entirely (nothing references W#/L# placeholders into it
+    anymore) rather than left in with literal names. An absent round must
+    not block detection the way an unresolved round does -- it should be
+    skipped, not treated as a stop condition."""
+    matches = [
+        # No "Round of 32" rows at all -- fully resolved and removed.
+        _make_match(1, "Round of 16", "Paraguay", "France"),
+        _make_match(7, "Round of 16", "Argentina", "Egypt"),
+        _make_match(8, "Round of 16", "Switzerland", "Colombia"),
+        _make_match(9, "Quarter-finals", "W1", "W2"),
+    ]
+    resolver = BracketResolver(matches)
+    assert resolver.detect_frontier_round() == "Round of 16"

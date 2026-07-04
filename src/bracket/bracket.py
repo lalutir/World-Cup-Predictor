@@ -248,8 +248,12 @@ class BracketResolver:
 
         Walks FRONTIER_ROUNDS in bracket order. A round only counts once
         every one of its own matches has literal (non-placeholder) home_slot
-        and away_slot values. Stops at the first round that still has any
-        placeholder slot, or that isn't present in the fixtures at all.
+        and away_slot values. Stops at the first round that is present but
+        still has any placeholder slot. A round that isn't present in the
+        fixtures at all is skipped rather than treated as a stop condition
+        -- once a round fully resolves in real life, its rows may be removed
+        from fixtures.csv entirely (nothing references W#/L# into it
+        anymore), and that must not be mistaken for "unresolved."
         Defaults to "Round of 32" if even that round isn't fully resolved
         yet (shouldn't happen in practice -- Round of 32 participants are a
         given input, not something this project simulates).
@@ -259,7 +263,7 @@ class BracketResolver:
         for round_name in FRONTIER_ROUNDS:
             matches = grouped.get(round_name)
             if not matches:
-                break
+                continue
             fully_resolved = all(
                 not self.is_placeholder(m.home_slot) and not self.is_placeholder(m.away_slot)
                 for m in matches
