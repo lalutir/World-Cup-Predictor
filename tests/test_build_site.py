@@ -163,3 +163,54 @@ def test_build_site_second_round_creates_both_archives(site_dirs):
     assert (site_dirs["site"] / "round32" / "index.html").exists()
     assert (site_dirs["site"] / "round16" / "index.html").exists()
     assert (site_dirs["site"] / "current" / "index.html").exists()
+
+
+# ---------------------------------------------------------------------------
+# Template rendering -- round label, title, dropdown markup
+# ---------------------------------------------------------------------------
+
+
+def test_rendered_page_shows_round_label_and_title(site_dirs):
+    site_dirs["fixtures"].write_text(_FIXTURES_ROUND32, encoding="utf-8")
+    build_site(
+        _tiny_results_df(),
+        n_sims=1000,
+        fixtures_path=site_dirs["fixtures"],
+        output_dir=site_dirs["site"],
+        archive_dir=site_dirs["archive"],
+    )
+
+    html = (site_dirs["site"] / "round32" / "index.html").read_text(encoding="utf-8")
+    assert "<title>2026 FIFA World Cup Predictor — Round of 32</title>" in html
+    assert 'class="round-switcher"' in html
+
+
+def test_dropdown_updates_on_older_page_after_new_round_archived(site_dirs):
+    """Archiving Round of 16 must also rebuild the Round of 32 page's nav
+    so its dropdown includes the newly archived round, with the
+    "current" tag moved onto Round of 16."""
+    site_dirs["fixtures"].write_text(_FIXTURES_ROUND32, encoding="utf-8")
+    build_site(
+        _tiny_results_df(),
+        n_sims=1000,
+        fixtures_path=site_dirs["fixtures"],
+        output_dir=site_dirs["site"],
+        archive_dir=site_dirs["archive"],
+    )
+
+    site_dirs["fixtures"].write_text(_FIXTURES_ROUND16, encoding="utf-8")
+    build_site(
+        _tiny_results_df(),
+        n_sims=1000,
+        fixtures_path=site_dirs["fixtures"],
+        output_dir=site_dirs["site"],
+        archive_dir=site_dirs["archive"],
+    )
+
+    round32_html = (site_dirs["site"] / "round32" / "index.html").read_text(encoding="utf-8")
+    assert "Predictions Round of 16" in round32_html
+    assert 'href="/round16/"' in round32_html
+    assert 'href="/round32/"' in round32_html
+
+    current_html = (site_dirs["site"] / "current" / "index.html").read_text(encoding="utf-8")
+    assert "Predictions Round of 16" in current_html
