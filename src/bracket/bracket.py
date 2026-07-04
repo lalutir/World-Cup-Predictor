@@ -73,6 +73,15 @@ _ROUND_ORDER: dict[str, int] = {
 
 _PLACEHOLDER_RE = re.compile(r"^[WL]\d+$")
 
+# Rounds that get their own archived prediction page / URL slug on the
+# results site. Bracket order matters here (used by detect_frontier_round
+# and by the site's round-switcher sort order). "Third place play-off" is
+# intentionally excluded -- it shares its participants' resolution with
+# "Final" and has no URL slug of its own.
+FRONTIER_ROUNDS: list[str] = [
+    "Round of 32", "Round of 16", "Quarter-finals", "Semi-finals", "Final",
+]
+
 
 # ---------------------------------------------------------------------------
 # Match dataclass
@@ -233,6 +242,33 @@ class BracketResolver:
                     seen.add(slot)
                     teams.append(slot)
         return teams
+
+    def detect_frontier_round(self) -> str:
+        """Return the deepest round whose matches are all fully known.
+
+        Walks FRONTIER_ROUNDS in bracket order. A round only counts once
+        every one of its own matches has literal (non-placeholder) home_slot
+        and away_slot values. Stops at the first round that still has any
+        placeholder slot, or that isn't present in the fixtures at all.
+        Defaults to "Round of 32" if even that round isn't fully resolved
+        yet (shouldn't happen in practice -- Round of 32 participants are a
+        given input, not something this project simulates).
+        """
+        grouped = dict(self.rounds_ordered())
+        frontier = FRONTIER_ROUNDS[0]
+        for round_name in FRONTIER_ROUNDS:
+            matches = grouped.get(round_name)
+            if not matches:
+                break
+            fully_resolved = all(
+                not self.is_placeholder(m.home_slot) and not self.is_placeholder(m.away_slot)
+                for m in matches
+            )
+            if fully_resolved:
+                frontier = round_name
+            else:
+                break
+        return frontier
 
     # ------------------------------------------------------------------
     # Neutral venue logic

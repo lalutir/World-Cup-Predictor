@@ -8,6 +8,7 @@ fixture.
 
 import pytest
 import sys
+import pandas as pd
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -195,3 +196,76 @@ def test_neutral_when_non_host_plays_at_us_venue():
     )
     resolver = BracketResolver([match])
     assert resolver.is_neutral(match, "Germany", "France") is True
+
+
+# ---------------------------------------------------------------------------
+# detect_frontier_round
+# ---------------------------------------------------------------------------
+
+
+def _make_match(match_id, round_name, home, away):
+    return Match(
+        match_id=match_id,
+        round=round_name,
+        home_slot=home,
+        away_slot=away,
+        stadium="Test Stadium",
+        date=pd.Timestamp("2026-07-01"),
+    )
+
+
+def test_frontier_stops_at_round_of_32_when_round_of_16_has_placeholders():
+    matches = [
+        _make_match(14, "Round of 32", "Argentina", "Cabo Verde"),
+        _make_match(15, "Round of 32", "Colombia", "Ghana"),
+        _make_match(1, "Round of 16", "Paraguay", "France"),
+        _make_match(7, "Round of 16", "W14", "Egypt"),
+        _make_match(8, "Round of 16", "Switzerland", "W15"),
+    ]
+    resolver = BracketResolver(matches)
+    assert resolver.detect_frontier_round() == "Round of 32"
+
+
+def test_frontier_advances_to_round_of_16_once_fully_literal():
+    matches = [
+        _make_match(14, "Round of 32", "Argentina", "Cabo Verde"),
+        _make_match(1, "Round of 16", "Paraguay", "France"),
+        _make_match(2, "Round of 16", "Canada", "Morocco"),
+        _make_match(9, "Quarter-finals", "W1", "W2"),
+    ]
+    resolver = BracketResolver(matches)
+    assert resolver.detect_frontier_round() == "Round of 16"
+
+
+def test_frontier_reaches_final_once_all_rounds_literal():
+    matches = [
+        _make_match(1, "Round of 32", "Argentina", "Cabo Verde"),
+        _make_match(2, "Round of 16", "Argentina", "France"),
+        _make_match(3, "Quarter-finals", "Argentina", "Brazil"),
+        _make_match(4, "Semi-finals", "Argentina", "Spain"),
+        _make_match(5, "Final", "Argentina", "England"),
+    ]
+    resolver = BracketResolver(matches)
+    assert resolver.detect_frontier_round() == "Final"
+
+
+def test_frontier_ignores_third_place_playoff():
+    """Third place play-off has no URL slug and shouldn't block detection."""
+    matches = [
+        _make_match(1, "Round of 32", "Argentina", "Cabo Verde"),
+        _make_match(2, "Round of 16", "Argentina", "France"),
+        _make_match(3, "Quarter-finals", "Argentina", "Brazil"),
+        _make_match(4, "Semi-finals", "Argentina", "Spain"),
+        _make_match(5, "Final", "Argentina", "England"),
+        _make_match(6, "Third place play-off", "L4", "L4"),
+    ]
+    resolver = BracketResolver(matches)
+    assert resolver.detect_frontier_round() == "Final"
+
+
+def test_frontier_defaults_to_round_of_32_when_nothing_resolved():
+    matches = [
+        _make_match(1, "Round of 32", "W99", "L99"),
+    ]
+    resolver = BracketResolver(matches)
+    assert resolver.detect_frontier_round() == "Round of 32"
