@@ -302,6 +302,7 @@
     @media (max-width: 640px) {
       .header-title h1 { font-size: 1.4rem; }
       .header-meta { text-align: left; }
+      .round-switcher-menu { right: auto; left: 0; }
     }
 
     /* ── Round switcher ───────────────────────────────────────── */
@@ -372,10 +373,6 @@
       border-radius: 999px;
       white-space: nowrap;
     }
-
-    @media (max-width: 640px) {
-      .round-switcher-menu { right: auto; left: 0; }
-    }
   </style>
 </head>
 <body>
@@ -398,7 +395,7 @@
           <summary>{{ active_nav_label }} <span class="chevron">&#9662;</span></summary>
           <div class="round-switcher-menu">
             {% for item in nav_items %}
-            <a href="{{ item.url }}" class="{{ 'active' if item.active else '' }}">
+            <a href="{{ item.url }}" {% if item.active %}class="active"{% endif %}>
               <span>{{ item.label }}</span>
               {% if item.show_current_tag %}<span class="current-tag">current</span>{% endif %}
             </a>

@@ -178,7 +178,7 @@ def _nav_anchor(html: str, label: str) -> tuple[str, bool]:
     Pins down the literal markup rendered by the round-switcher block in
     index.html.j2:
 
-        <a href="{{ item.url }}" class="{{ 'active' if item.active else '' }}">
+        <a href="{{ item.url }}" {% if item.active %}class="active"{% endif %}>
           <span>{{ item.label }}</span>
           {% if item.show_current_tag %}<span class="current-tag">current</span>{% endif %}
         </a>
@@ -188,13 +188,13 @@ def _nav_anchor(html: str, label: str) -> tuple[str, bool]:
     somewhere in the page.
     """
     pattern = re.compile(
-        r'<a href="[^"]*" class="([^"]*)">\s*<span>'
+        r'<a href="[^"]*"(?: class="([^"]*)")?\s*>\s*<span>'
         + re.escape(label)
         + r'</span>\s*(<span class="current-tag">current</span>)?\s*</a>'
     )
     match = pattern.search(html)
     assert match, f"could not find nav anchor for label {label!r} in rendered html"
-    return match.group(1), match.group(2) is not None
+    return match.group(1) or "", match.group(2) is not None
 
 
 def test_rendered_page_shows_round_label_and_title(site_dirs):
