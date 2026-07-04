@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2026 FIFA World Cup Predictor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0f172a;
+      --surface:    #1e293b;
+      --border:     #334155;
+      --text:       #f1f5f9;
+      --text-muted: #94a3b8;
+      --green:      #22c55e;
+      --gold:       #f59e0b;
+      --blue:       #3b82f6;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                   'Helvetica Neue', Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .container { max-width: 1000px; margin: 0 auto; padding: 0 24px; width: 100%; }
+
+    header {
+      background: linear-gradient(135deg, #0a1628 0%, #1a2f5a 50%, #0f2a4a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 56px 0 40px;
+      text-align: center;
+    }
+
+    h1 { font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; }
+    h1 .accent { color: var(--gold); }
+
+    .subtitle { margin-top: 10px; font-size: .95rem; color: var(--text-muted); }
+
+    main { flex: 1; padding: 48px 0; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .tile {
+      display: block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px 20px;
+      text-decoration: none;
+      color: var(--text);
+      transition: border-color .15s, transform .15s;
+    }
+
+    .tile:hover { border-color: var(--blue); transform: translateY(-2px); }
+
+    .tile-label { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+
+    .tile-date { font-size: .8rem; color: var(--text-muted); }
+
+    .current-tag {
+      display: inline-block;
+      margin-top: 12px;
+      font-size: .68rem;
+      font-weight: 700;
+      color: var(--green);
+      background: rgba(34,197,94,.12);
+      border: 1px solid rgba(34,197,94,.3);
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 20px 0;
+      text-align: center;
+      font-size: .78rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <h1>2026 FIFA World Cup <span class="accent">Predictor</span></h1>
+    <div class="subtitle">Select a round to view its predictions</div>
+  </div>
+</header>
+
+<main>
+  <div class="container">
+    <div class="grid">
+      {% for tile in tiles %}
+      <a class="tile" href="{{ tile.url }}">
+        <div class="tile-label">{{ tile.label }}</div>
+        <div class="tile-date">Generated {{ tile.generated_at }}</div>
+        {% if tile.show_current_tag %}<span class="current-tag">current</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container">world-cup-simulation.lalutir.com</div>
+</footer>
+
+</body>
+</html>

@@ -1,5 +1,4 @@
 world-cup-simulation.lalutir.com {
     root * /home/lalutir/world-cup-predictor
-    redir / /current
     file_server
 }

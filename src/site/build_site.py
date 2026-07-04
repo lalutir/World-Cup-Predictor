@@ -12,7 +12,8 @@ every archived round's page plus /current -- so old archived pages' round
 switcher stays up to date as new rounds get simulated.
 
 Output: site/<slug>/index.html + data/results.json for every archived
-round, plus site/current/ mirroring the latest one.
+round, plus site/current/ mirroring the latest one, plus a site/index.html
+landing page with a grid of tiles linking to each available round.
 """
 
 from __future__ import annotations
@@ -169,6 +170,33 @@ def _format_generated_at(iso_str: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Root landing page (grid of tiles, one per available round + Current)
+# ---------------------------------------------------------------------------
+
+def _build_landing_tiles(archives: dict[str, dict], latest_slug: str) -> list[dict]:
+    """Build the root landing page's tile grid: "Current Predictions"
+    pinned first, then archived rounds in descending bracket order (most
+    advanced first). Only slugs present in archives are included."""
+    tiles: list[dict] = [{
+        "label": "Current Predictions",
+        "url": "/current/",
+        "generated_at": _format_generated_at(archives[latest_slug]["generated_at"]),
+        "show_current_tag": False,
+    }]
+    for meta in reversed(ROUND_META):
+        if meta.slug not in archives:
+            continue
+        payload = archives[meta.slug]
+        tiles.append({
+            "label": f"Predictions {meta.label}",
+            "url": f"/{meta.slug}/",
+            "generated_at": _format_generated_at(payload["generated_at"]),
+            "show_current_tag": meta.slug == latest_slug,
+        })
+    return tiles
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -263,8 +291,14 @@ def build_site(
 
     _render_and_write(archives[latest_slug], out_dir / "current", active_slug="current")
 
+    landing_template = env.get_template("landing.html.j2")
+    landing_html = landing_template.render(tiles=_build_landing_tiles(archives, latest_slug))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "index.html").write_text(landing_html, encoding="utf-8")
+
     current_index = out_dir / "current" / "index.html"
     print(f"\nDashboard built -> {current_index}  (latest round: {latest_slug})")
+    print(f"Landing page   -> {out_dir / 'index.html'}")
     return current_index
 
 

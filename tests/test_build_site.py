@@ -273,3 +273,75 @@ def test_dropdown_updates_on_older_page_after_new_round_archived(site_dirs):
 
     _, current_page_current_has_tag = _nav_anchor(current_html, "Current Predictions")
     assert current_page_current_has_tag is False
+
+
+# ---------------------------------------------------------------------------
+# Root landing page (grid of tiles, one per available round + Current)
+# ---------------------------------------------------------------------------
+
+
+def test_landing_page_written_at_site_root(site_dirs):
+    site_dirs["fixtures"].write_text(_FIXTURES_ROUND32, encoding="utf-8")
+    build_site(
+        _tiny_results_df(),
+        n_sims=1000,
+        fixtures_path=site_dirs["fixtures"],
+        output_dir=site_dirs["site"],
+        archive_dir=site_dirs["archive"],
+    )
+
+    landing = site_dirs["site"] / "index.html"
+    assert landing.exists()
+    html = landing.read_text(encoding="utf-8")
+    assert 'href="/current/"' in html
+    assert 'href="/round32/"' in html
+    assert "Predictions Round of 32" in html
+    assert "Current Predictions" in html
+
+
+def test_landing_page_lists_rounds_current_first_then_descending(site_dirs):
+    site_dirs["fixtures"].write_text(_FIXTURES_ROUND32, encoding="utf-8")
+    build_site(
+        _tiny_results_df(),
+        n_sims=1000,
+        fixtures_path=site_dirs["fixtures"],
+        output_dir=site_dirs["site"],
+        archive_dir=site_dirs["archive"],
+    )
+    site_dirs["fixtures"].write_text(_FIXTURES_ROUND16, encoding="utf-8")
+    build_site(
+        _tiny_results_df(),
+        n_sims=1000,
+        fixtures_path=site_dirs["fixtures"],
+        output_dir=site_dirs["site"],
+        archive_dir=site_dirs["archive"],
+    )
+
+    html = (site_dirs["site"] / "index.html").read_text(encoding="utf-8")
+
+    # Order: Current Predictions, then Round of 16 (latest), then Round of 32.
+    current_pos = html.index("Current Predictions")
+    r16_pos = html.index("Predictions Round of 16")
+    r32_pos = html.index("Predictions Round of 32")
+    assert current_pos < r16_pos < r32_pos
+
+    # Only the latest round's tile shows the "current" tag.
+    r16_tile = html[r16_pos:r32_pos]
+    r32_tile = html[r32_pos:]
+    assert "current-tag" in r16_tile
+    assert "current-tag" not in r32_tile
+
+
+def test_landing_page_shows_generated_date_per_tile(site_dirs):
+    site_dirs["fixtures"].write_text(_FIXTURES_ROUND32, encoding="utf-8")
+    build_site(
+        _tiny_results_df(),
+        n_sims=1000,
+        fixtures_path=site_dirs["fixtures"],
+        output_dir=site_dirs["site"],
+        archive_dir=site_dirs["archive"],
+    )
+
+    html = (site_dirs["site"] / "index.html").read_text(encoding="utf-8")
+    assert "Generated " in html
+    assert "UTC" in html
