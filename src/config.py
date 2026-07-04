@@ -170,6 +170,12 @@ SITE_DIR: Path = REPO_ROOT / "site"
 SITE_DATA_DIR: Path = SITE_DIR / "data"
 SITE_TEMPLATES_DIR: Path = REPO_ROOT / "src" / "site" / "templates"
 
+# Permanent per-round prediction snapshots. Unlike the rest of data/
+# (raw/processed -- gitignored and regenerable from source), these can't be
+# reconstructed once fixtures.csv moves on to the next round's real
+# results, so .gitignore carves out an exception for this one subdirectory.
+SITE_ARCHIVE_DIR: Path = DATA_DIR / "site_archive"
+
 # Manually curated list of past FIFA World Cup winners.
 # Only needs updating if a first-time winner emerges from this tournament.
 PAST_WORLD_CUP_WINNERS: list[str] = [
