@@ -2,7 +2,7 @@
 
 A Python simulator for the knockout phase of the 2026 FIFA World Cup. Group-stage outcomes are treated as a fixed input — the project picks up from the Round of 32 and plays the bracket forward 1,000,000 times to produce per-team probability distributions across seven outcome buckets: Round of 32 exit through champion.
 
-Live results: [world-cup-simulator.lalutir.com](https://world-cup-simulator.lalutir.com)
+Live results: [world-cup-simulation.lalutir.com](https://world-cup-simulation.lalutir.com)
 
 ---
 
@@ -16,7 +16,7 @@ Live results: [world-cup-simulator.lalutir.com](https://world-cup-simulator.lalu
 3. Build features       → data/processed/features.parquet
 4. Train models         → data/processed/model.pkl + shootout_model.pkl
 5. Run simulation       → per-team outcome percentages
-6. Build static site    → site/index.html
+6. Build static site    → site/index.html (landing page) + site/current/, site/round32/, ... (per round)
 ```
 
 The full pipeline runs automatically on first use:
@@ -225,8 +225,11 @@ pytest
 │   │   └── shootout_model.pkl        # trained shootout model (joblib)
 │   ├── bracket/
 │   │   └── test_bracket.csv          # synthetic 8-team bracket for unit tests
-│   └── knockout_fixtures/
-│       └── fixtures.csv              # real 2026 Round-of-32-onward bracket
+│   ├── knockout_fixtures/
+│   │   └── fixtures.csv              # real 2026 Round-of-32-onward bracket
+│   └── site_archive/                 # permanent per-round prediction snapshots (git-tracked
+│       ├── round32.json              # exception to the blanket /data ignore rule)
+│       └── round16.json
 ├── src/
 │   ├── config.py                     # all paths, URLs, and numeric constants
 │   ├── data/
@@ -247,20 +250,26 @@ pytest
 │   ├── simulator/
 │   │   └── montecarlo.py             # vectorized 1,000,000-run Monte Carlo engine
 │   └── site/
-│       ├── build_site.py             # reads simulation output, renders static site
+│       ├── build_site.py             # archives each round, rebuilds every page + landing page
+│       ├── rounds.py                 # round name <-> URL slug/label mapping
 │       └── templates/
-│           └── index.html.j2         # Jinja2 template; Chart.js via CDN
+│           ├── index.html.j2         # per-round dashboard: dropdown, charts, tables
+│           └── landing.html.j2       # root grid page listing every available round
 ├── site/                             # generated output (gitignored) — what gets deployed
-│   ├── index.html
-│   └── data/
-│       └── results.json
+│   ├── index.html                    # grid landing page (site root)
+│   ├── current/                      # mirrors the latest archived round
+│   │   ├── index.html
+│   │   └── data/results.json
+│   └── round32/, round16/, ...       # one per archived round, permanent
 ├── scripts/
-│   └── deploy_site.sh                # rsync to droplet over SSH
+│   └── deploy_site.sh                # scp site/ to droplet over SSH (not the Caddyfile)
 └── tests/
     ├── test_bracket.py               # resolver correctness against test_bracket.csv
     ├── test_elo.py                   # zero-sum updates, K-scaling, rating gap monotonicity
     ├── test_features.py              # schema checks + no-lookahead leakage assertions
-    └── test_simulator.py             # per-team bucket sums; round advancement totals
+    ├── test_simulator.py             # per-team bucket sums; round advancement totals
+    ├── test_site_rounds.py           # round slug/label mapping
+    └── test_build_site.py            # archiving, nav dropdown, multi-page render, landing page
 ```
 
 ---
@@ -291,9 +300,9 @@ Data spans 1960–2026. For matches before 1960, each country's 1960 value is us
 
 ### 2026 knockout bracket
 
-`data/knockout_fixtures/fixtures.csv` contains the full 32-match knockout bracket (matches 1–32, covering Round of 32 through the Final on 2026-07-19). Later rounds use `W<match_id>` / `L<match_id>` placeholders that the simulator resolves as each prior match is played.
+`data/knockout_fixtures/fixtures.csv` contains the knockout bracket, covering Round of 32 through the Final on 2026-07-19. Later rounds use `W<match_id>` / `L<match_id>` placeholders that the simulator resolves as each prior match is played; replace placeholders with real team names as each round concludes.
 
-As of 2026-06-23, the Round of 32 slots still contain group-stage placeholders (e.g. "Group A runners-up") — replace these with actual team names once the group stage concludes for accurate predictions.
+**Two gotchas when hand-editing this file:** `match_id` must be unique across the *entire* file, not just within a round — `BracketResolver` keys matches in a dict by `match_id`, so a repeated id (e.g. a Round of 32 match and the Third-place play-off both using `15`) causes the later row to silently overwrite the earlier one, and that match vanishes from the bracket with no error. And once a round fully resolves, its rows may be deleted entirely rather than left in with literal names — `detect_frontier_round()` (see [Results website](#results-website)) is built to skip an absent round rather than treat it as unresolved.
 
 ---
 
@@ -316,20 +325,22 @@ All constants live in [`src/config.py`](src/config.py) — edit there to change 
 
 ## Results website
 
-The static dashboard at [world-cup-simulator.lalutir.com](https://world-cup-simulator.lalutir.com) is built from the simulation output:
+The static dashboard at [world-cup-simulation.lalutir.com](https://world-cup-simulation.lalutir.com) is built from the simulation output. Each round's predictions are archived permanently instead of being overwritten on rerun:
 
-- **Championship odds** — `P(team wins the tournament)` for the 8 nations that have previously won a World Cup.
-- **Full bracket table** — all 32 teams with their probability in each of the seven outcome buckets, sorted by championship %, plus a "Most Likely Exit" column.
-- **Top-15 bar chart** — horizontal bar chart of championship % for the most competitive teams.
-- **Footer** — simulation count, data-as-of date, and last-updated timestamp.
+- **Root (`/`)** — a grid landing page listing every available round ("Current Predictions" plus one tile per archived round), each linking to its own page.
+- **`/current`** — always mirrors the latest simulated round.
+- **`/round32`, `/round16`, `/quarterfinal`, `/semifinal`, `/final`** — permanent pages, one per round, appearing as each round is archived. Every page includes a header dropdown to switch between all available rounds.
+- Each round's page shows: **championship odds** for the 8 past World Cup winners, a **full bracket table** for all teams across the seven outcome buckets with a "Most Likely Exit" column, a **top-15 bar chart**, and a **footer** with simulation count and generated date.
 
-To rebuild and deploy after new real results:
+Which round a rerun gets archived as is auto-detected from `data/knockout_fixtures/fixtures.csv` (`BracketResolver.detect_frontier_round()`) — no flag to remember. To rebuild and deploy after new real results:
 
 ```bash
 python -m src.data.fetch_results --force   # pull latest results.csv
 python -m src.simulator.montecarlo --rebuild
 bash scripts/deploy_site.sh
 ```
+
+`deploy_site.sh` only copies `site/` — if `caddy/world-cup.caddy` changed, copy it to the droplet's `/etc/caddy/conf.d/world-cup.caddy` and `sudo systemctl reload caddy` separately.
 
 ---
 

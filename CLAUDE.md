@@ -14,6 +14,10 @@ As of today (2026-06-22) the real tournament is mid-group-stage, so `results.csv
 already contains the 2026 group games and a handful of *unplayed, NA-score* future fixtures —
 that matters for the data pipeline, see [Known Data Quirks](#known-data-quirks).
 
+**Update (2026-07-04):** the real tournament has since progressed to Round of 16 — the line above
+describes the state when this doc was first written. `results.csv` may now contain played 2026
+knockout-stage rows too; don't assume "mid-group-stage" is still current without checking.
+
 ## Inspiration & Non-Goals
 
 - Inspired by [mar-antaya/world_cup_predictions](https://github.com/mar-antaya/world_cup_predictions) — **no code from that repo is reused**, it's a reference for the overall approach (Elo from history → feature model → Monte Carlo bracket).
@@ -255,6 +259,8 @@ Single source of truth, so these don't drift between modules:
 - `results.csv` already contains rows for unplayed 2026 fixtures (`home_score`/`away_score` = `NA`, dated this week as of 2026-06-22) — filter these out before computing Elo, form, H2H, or anything else; they're schedule placeholders, not results.
 - `tournament` has ~200 distinct strings. Match on exact strings for tiering (e.g. `"FIFA World Cup"` vs `"FIFA World Cup qualification"` vs `"CONIFA World Cup qualification"` vs `"Viva World Cup"` — the latter two are not FIFA-sanctioned despite the name).
 - `home_team`/`away_team` use full country names (e.g. `"United States"`, not `"USA"`) — keep `crosswalk.py`'s canonical-name mapping consistent with that convention rather than introducing abbreviations.
+- `match_id` in `fixtures.csv` must be unique across the **whole file**, not just within a round — `BracketResolver` keys every match in a dict by `match_id`; two rows sharing an id (e.g. a Round of 32 match and the Third-place play-off both using `15`) cause the later row to silently overwrite the earlier one, so that match vanishes from the bracket with no error. This happened in production once real Round of 32 results started getting filled in.
+- Once a round fully resolves in real life, its `fixtures.csv` rows are often **deleted entirely** rather than left in with literal team names (nothing references their `W#`/`L#` placeholders anymore) — `BracketResolver.detect_frontier_round()` is built to handle this: an absent round is skipped when detecting the current round, not treated as unresolved.
 
 ## Setup & Common Commands
 
@@ -291,23 +297,36 @@ pytest
 - Decide the proxy-data policy per non-WDI footballing nation (inherit parent state's economic data? confederation average? leave null and let the model handle missingness?) — `crosswalk.py` needs one consistent rule, not ad hoc per-team choices.
 - Decide whether group-stage-resolved team names get fed into `fixtures.csv` by hand each time, or whether a future version should ingest a live group-stage results feed — out of scope for now, but worth a one-line note in `README.md` so it's not mistaken for an oversight.
 
-## Results Website — world-cup-simulator.lalutir.com
+## Results Website — world-cup-simulation.lalutir.com
 
 A static results page built from `montecarlo.py`'s output, deployed to a subdomain of `lalutir.com`.
+
+**Built and deployed as of 2026-07-04** — with more structure than the original two-table
+recommendation described below. Each round's predictions are archived permanently
+(`data/site_archive/<slug>.json`) instead of being overwritten on rerun.
+`BracketResolver.detect_frontier_round()` auto-detects which round the site should be tagged as
+from `fixtures.csv` (no manual flag). The site now serves multiple pages — `/current` (mirrors the
+latest round), `/round32`, `/round16`, `/quarterfinal`, `/semifinal`, `/final` (permanent, one per
+archived round) — plus a header dropdown to switch between them and a grid landing page at the
+site root listing every available round. See `src/site/rounds.py` for the slug/label mapping and
+`src/site/build_site.py` for the archive-then-rebuild-everything logic. Treat the rest of this
+section as historical design rationale where it conflicts with the above.
 
 ### Hosting & DNS
 
 - `lalutir.com` is registered with DNS on Cloudflare, and existing traffic for the domain is routed
   to a single droplet (origin server) that you already use for hosting.
-- New work needed: a DNS record for `world-cup-simulator.lalutir.com` in the Cloudflare dashboard —
+- New work needed: a DNS record for `world-cup-simulation.lalutir.com` in the Cloudflare dashboard —
   either a `CNAME` to whatever hostname the droplet is already reachable at, or an `A` record
   pointing straight at the droplet's IP. Match whatever record type/proxy status (orange-cloud
   "Proxied" vs grey-cloud "DNS only") you're already using for your other subdomains, for
   consistency; "Proxied" is the better default for a static page since it gets Cloudflare's
   CDN/caching/TLS for free.
-- On the droplet itself, a server block/vhost needs to point that hostname at the directory this
-  site's build step writes to. Below assumes the droplet runs **nginx** (the common default) —
-  adjust if it's actually Apache or Caddy. This is unconfirmed, see [Open Questions](#open-questions-for-this-section-1) below.
+- On the droplet itself, **Caddy** (confirmed, not nginx as originally assumed here) serves the
+  site: `caddy/world-cup.caddy` — `root * /home/lalutir/world-cup-predictor` + `file_server`.
+  That Caddyfile is **not** deployed by `scripts/deploy_site.sh` (which only copies `site/`) — copy
+  it to the droplet's `/etc/caddy/conf.d/world-cup.caddy` and `sudo systemctl reload caddy` by hand
+  whenever it changes.
 
 ### Page Content
 
@@ -352,13 +371,13 @@ Nice-to-have, more build effort:
 - **Confederation rollup**: combined probability that *some* UEFA / CONMEBOL / CONCACAF / CAF / AFC
   / OFC team wins it. Needs a new team→confederation lookup table that doesn't exist yet anywhere
   in this repo — small addition to `crosswalk.py` if you want this one.
-- **Live re-runs during the tournament**: re-run `montecarlo.py` after each real knockout result,
-  treating already-finished matches in `fixtures.csv` as locked/deterministic and simulating only
-  what's left, then rebuild and redeploy the site. Otherwise the published percentages go stale the
-  moment the real bracket starts diverging from "hasn't happened yet." This is a deliberate
-  enhancement to flag, not something to silently assume — see the note in
+- **Live re-runs during the tournament**: *(partially built)* — reruns are now safe and
+  non-destructive (each round's predictions archive permanently instead of being overwritten, and
+  the round tag is auto-detected from `fixtures.csv`), but *triggering* a rerun after each real
+  knockout result is still a manual step (rerun `montecarlo.py`, then redeploy) — nothing
+  automatically watches for real results yet. See the note in
   [Simulation Engine](#simulation-engine) about Elo being frozen for a given run; that assumption
-  is still fine here, you're just choosing *when* to kick off a new run.
+  is still fine here.
 
 ### Build & Deploy Architecture
 
@@ -368,25 +387,37 @@ few-times-a-day rebuild:
 ```text
 src/
 └── site/
-    ├── build_site.py        # reads montecarlo.py's output, renders templates, writes site/
+    ├── build_site.py        # archives each round, rebuilds every page + landing page each run
+    ├── rounds.py             # round name <-> URL slug/label mapping (round32, round16, ...)
     └── templates/
-        └── index.html.j2    # Jinja2 template; Chart.js via CDN for the bar/heatmap visuals
+        ├── index.html.j2    # per-round dashboard: dropdown, charts, tables
+        └── landing.html.j2  # root grid page listing every available round
+data/
+└── site_archive/             # permanent per-round JSON snapshots — a git-tracked exception to
+    ├── round32.json          # the blanket /data ignore rule (see Constants below)
+    └── round16.json
 site/                         # generated output — gitignored, this is what gets deployed
-├── index.html
-├── assets/
-│   └── style.css
-└── data/
-    └── results.json
+├── index.html                # grid landing page (site root)
+├── current/                  # mirrors the latest archived round
+│   ├── index.html
+│   └── data/results.json
+└── round32/, round16/, quarterfinal/, semifinal/, final/   # one per archived round, as they occur
+    ├── index.html
+    └── data/results.json
 scripts/
-└── deploy_site.sh            # rsync/scp site/ to the droplet, into the nginx-served path
+└── deploy_site.sh            # scp site/ to the droplet, into the Caddy-served path (does NOT
+                               # deploy caddy/world-cup.caddy itself — see Hosting & DNS above)
 ```
 
-- `build_site.py` writes `site/data/results.json` as the single source of truth the page's charts
-  read from, e.g.:
+- `build_site.py` writes `data/results.json` under each round's own directory
+  (`site/current/data/`, `site/round32/data/`, etc.) as that page's source of truth for its
+  charts, e.g.:
   ```json
   {
     "generated_at": "2026-06-28T10:00:00Z",
     "n_sims": 1000000,
+    "round_slug": "round32",
+    "round_label": "Round of 32",
     "teams": [
       {"team": "Brazil", "is_past_winner": true,
        "p_r32_exit": 0.08, "p_r16_exit": 0.18, "p_qf_exit": 0.27,
@@ -394,22 +425,28 @@ scripts/
     ]
   }
   ```
-  Same six buckets as `montecarlo.py`'s output, just JSON-serialized with a small metadata header.
+  Same buckets as `montecarlo.py`'s output, JSON-serialized with a small metadata header. The
+  permanent archive at `data/site_archive/<slug>.json` uses this same shape.
 - Use Jinja2 to bake the HTML at build time (tables render server-side at build, charts read the
   JSON client-side) rather than a JS framework — there's no interactivity here that needs one.
-- `deploy_site.sh` is a thin rsync/scp-over-SSH step; no CI/CD platform assumed, but this is a
+- `deploy_site.sh` is a thin scp-over-SSH step; no CI/CD platform assumed, but this is a
   natural fit for a GitHub Action later if you want pushes to auto-deploy.
 
 ### Constants for This Section
 
 - `PAST_WORLD_CUP_WINNERS = ["Argentina", "Brazil", "England", "France", "Germany", "Italy", "Spain", "Uruguay"]` — manually curated, see Table 1 above.
-- Subdomain: `world-cup-simulator.lalutir.com`.
+- Subdomain: `world-cup-simulation.lalutir.com`.
+- `SITE_ARCHIVE_DIR = data/site_archive/` — permanent per-round snapshots; carved out of the
+  blanket `/data` `.gitignore` rule via `/data/*` + `!/data/site_archive` (git can't re-include a
+  child of a wholly-excluded parent directory, so the parent rule itself has to change shape, not
+  just gain a `!` line underneath it).
 
 ### Open Questions for This Section
 
-- Which web server is actually running on the droplet (nginx assumed above), and what's the
-  existing convention for adding a new subdomain's document root / vhost there?
-- DNS record type and proxy status to match your existing subdomains (CNAME vs A, proxied vs DNS-only).
-- Rebuild cadence: manual trigger, a cron job, or rebuilding on every real knockout result (see the
-  "live re-runs" idea above) — affects whether `deploy_site.sh` needs to be wired into anything
-  beyond a manual run.
+- ~~Which web server is actually running on the droplet~~ — resolved: **Caddy**
+  (`caddy/world-cup.caddy`), not nginx as originally assumed above.
+- DNS record type and proxy status to match your existing subdomains (CNAME vs A, proxied vs DNS-only) — still unconfirmed.
+- Rebuild cadence is still manual: rerun `python -m src.simulator.montecarlo`, then
+  `scripts/deploy_site.sh`. Nothing auto-triggers on real knockout results yet — the archiving
+  system (round auto-detection + permanent snapshots) is what makes manual reruns safe now, since
+  nothing gets lost, but you still have to remember to run it and redeploy.

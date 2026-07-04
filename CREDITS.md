@@ -19,7 +19,7 @@
 - **Attribution:** Data sourced from The World Bank, World Development Indicators.
   Per CC BY 4.0 terms, this attribution is required wherever derived data or outputs
   are displayed publicly, including on the results website at
-  [world-cup-simulator.lalutir.com](https://world-cup-simulator.lalutir.com).
+  [world-cup-simulation.lalutir.com](https://world-cup-simulation.lalutir.com).
 
 ## Inspiration
 
