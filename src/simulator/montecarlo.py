@@ -519,7 +519,7 @@ if __name__ == "__main__":
         print("\n[Pipeline 4/4] Building static dashboard …")
         try:
             from src.site.build_site import build_site
-            build_site(results, n_sims=args.n)
+            build_site(results, n_sims=args.n, fixtures_path=Path(args.fixtures))
         except ImportError as exc:
             print(f"  Skipped (missing dependency): {exc}")
             print("  Install with: pip install jinja2")
