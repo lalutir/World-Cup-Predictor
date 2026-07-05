@@ -28,7 +28,7 @@
 set -euo pipefail
 
 DROPLET_USER="${DROPLET_USER:-lalutir}"
-DROPLET_HOST="${DROPLET_HOST:?Error: DROPLET_HOST is not set. Run: DROPLET_HOST=<ip-or-hostname> bash scripts/deploy_site.sh}"
+DROPLET_HOST="${DROPLET_HOST:-142.93.232.87}"
 REMOTE_PATH="${REMOTE_PATH:-/home/lalutir/world-cup-predictor}"
 SSH_KEY="${SSH_KEY:-}"
 
