@@ -23,3 +23,5 @@
 
 # Site builder cache
 /src/site/__pycache__
+
+/.pytest_cache
