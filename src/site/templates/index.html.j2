@@ -4,46 +4,80 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>2026 FIFA World Cup Predictor — {{ round_label }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <style>
     /* ── Reset & base ─────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* Seaglass design tokens — mirrors lalutir.com/assets/css/tokens.css.
+       This site has no shared asset pipeline (self-contained Jinja2
+       templates, no build step), so the values are inlined here and on
+       landing.html.j2 rather than linked; keep both in sync by hand if
+       the source tokens.css ever changes. */
     :root {
-      --bg:           #0f172a;
-      --surface:      #1e293b;
-      --surface-alt:  #162032;
-      --border:       #334155;
-      --text:         #f1f5f9;
-      --text-muted:   #94a3b8;
-      --green:        #22c55e;
-      --gold:         #f59e0b;
-      --blue:         #3b82f6;
-      --red:          #ef4444;
-      --orange:       #f97316;
-      --yellow:       #eab308;
-      --cyan:         #06b6d4;
-      --purple:       #a855f7;
+      --sand:          #F3EEE4;
+      --sand-solid:    #EFEADF;
+      --seafoam:       #B9CFC7;
+      --seafoam-deep:  #8AA89D;
+      --kelp:          #4B6B62;
+      --amber-glass:   #C98A55;
+      --cobalt-rare:   #3E5A82;
+      --ink:           #262A28;
+      --ink-soft:      #5B615D;
+
+      --glass-tint-seafoam: rgba(185, 207, 199, .38);
+      --glass-tint-amber:   rgba(201, 138, 85, .20);
+      --glass-tint-kelp:    rgba(75, 107, 98, .16);
+      --glass-border:       rgba(38, 42, 40, .10);
+      --glass-blur:         18px;
+      --glass-blur-deep:    30px;
+
+      --font-display: 'Fraunces', Georgia, serif;
+      --font-body:    'Hanken Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+
+      --radius-panel:   1.25rem;
+      --radius-control: 0.65rem;
     }
 
     html { scroll-behavior: smooth; }
 
     body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-                   'Helvetica Neue', Arial, sans-serif;
+      background: var(--sand);
+      color: var(--ink);
+      font-family: var(--font-body);
       font-size: 15px;
       line-height: 1.5;
+    }
+
+    /* Display type: force the low-opsz cut of Fraunces so it stays soft
+       even at large sizes — left on auto it snaps to a tighter, higher-
+       contrast cut, which fights the whole point. */
+    .font-display {
+      font-family: var(--font-display);
+      font-optical-sizing: none;
+      font-variation-settings: 'opsz' 12;
     }
 
     /* ── Layout ───────────────────────────────────────────────── */
     .container { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
 
     /* ── Header ───────────────────────────────────────────────── */
+    /* No backdrop-filter here (unlike the other glass panels): the header
+       contains the round-switcher dropdown, an absolutely-positioned
+       element that overflows the header's own box. Chromium visually
+       clips overflowing absolutely-positioned descendants to a
+       backdrop-filter ancestor's border box (a real rendering quirk, not
+       a spec'd clipping rule) — with the header's own background already
+       just a flat gradient tint over solid --sand, the blur added
+       nothing visible anyway, so dropping it is the actual fix, not a
+       workaround. */
     .header {
-      background: linear-gradient(135deg, #0a1628 0%, #1a2f5a 50%, #0f2a4a 100%);
-      border-bottom: 1px solid var(--border);
+      background-color: var(--sand);
+      background-image: linear-gradient(135deg, var(--glass-tint-seafoam) 0%, var(--glass-tint-kelp) 100%);
+      border-bottom: 1px solid var(--glass-border);
       padding: 36px 0 28px;
     }
 
@@ -56,18 +90,22 @@
     }
 
     .header-title h1 {
+      font-family: var(--font-display);
+      font-optical-sizing: none;
+      font-variation-settings: 'opsz' 12;
       font-size: 1.9rem;
-      font-weight: 800;
-      letter-spacing: -0.02em;
+      font-weight: 600;
+      letter-spacing: -0.01em;
       line-height: 1.2;
+      color: var(--ink);
     }
 
-    .header-title h1 .accent { color: var(--gold); }
+    .header-title h1 .accent { color: var(--amber-glass); }
 
     .header-title .subtitle {
       margin-top: 6px;
       font-size: 0.875rem;
-      color: var(--text-muted);
+      color: var(--ink-soft);
     }
 
     .header-pills {
@@ -88,36 +126,36 @@
     }
 
     .pill-green {
-      background: rgba(34,197,94,.12);
-      border: 1px solid rgba(34,197,94,.3);
-      color: var(--green);
+      background: var(--glass-tint-seafoam);
+      border: 1px solid rgba(138,168,157,.5);
+      color: var(--kelp);
     }
 
     .pill-gold {
-      background: rgba(245,158,11,.12);
-      border: 1px solid rgba(245,158,11,.3);
-      color: var(--gold);
+      background: var(--glass-tint-amber);
+      border: 1px solid rgba(201,138,85,.45);
+      color: #8f5c33;
     }
 
     .pill-blue {
-      background: rgba(59,130,246,.12);
-      border: 1px solid rgba(59,130,246,.3);
-      color: var(--blue);
+      background: var(--glass-tint-kelp);
+      border: 1px solid rgba(75,107,98,.4);
+      color: var(--kelp);
     }
 
     .header-meta {
       text-align: right;
       font-size: 0.8rem;
-      color: var(--text-muted);
+      color: var(--ink-soft);
       line-height: 1.8;
     }
 
-    .header-meta strong { color: var(--text); font-size: 1rem; }
+    .header-meta strong { color: var(--ink); font-size: 1rem; }
 
     /* ── Nav bar ──────────────────────────────────────────────── */
     .nav {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
+      background: var(--sand-solid);
+      border-bottom: 1px solid var(--glass-border);
       position: sticky;
       top: 0;
       z-index: 10;
@@ -133,19 +171,19 @@
       padding: 14px 20px;
       font-size: 0.82rem;
       font-weight: 600;
-      color: var(--text-muted);
+      color: var(--ink-soft);
       text-decoration: none;
       white-space: nowrap;
       border-bottom: 2px solid transparent;
       transition: color .15s, border-color .15s;
     }
 
-    .nav a:hover { color: var(--text); border-bottom-color: var(--border); }
+    .nav a:hover { color: var(--ink); border-bottom-color: var(--kelp); }
 
     /* ── Sections ─────────────────────────────────────────────── */
     .section {
       padding: 48px 0;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--glass-border);
     }
 
     .section:last-of-type { border-bottom: none; }
@@ -153,35 +191,40 @@
     .section-header { margin-bottom: 28px; }
 
     .section-header h2 {
+      font-family: var(--font-display);
+      font-optical-sizing: none;
+      font-variation-settings: 'opsz' 12;
       font-size: 1.2rem;
-      font-weight: 700;
-      color: var(--text);
+      font-weight: 600;
+      color: var(--ink);
       margin-bottom: 4px;
     }
 
     .section-header .desc {
       font-size: 0.85rem;
-      color: var(--text-muted);
+      color: var(--ink-soft);
     }
 
-    .section-header .desc .star { color: var(--gold); }
+    .section-header .desc .star { color: var(--amber-glass); }
+
+    /* ── Glass panel base (chart + table wraps) ──────────────────── */
+    .chart-wrap,
+    .table-wrap {
+      background: var(--glass-tint-seafoam);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-panel);
+      transition: backdrop-filter .4s ease, background .4s ease;
+    }
 
     /* ── Chart ────────────────────────────────────────────────── */
-    .chart-wrap {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 24px;
-    }
+    .chart-wrap { padding: 24px; }
 
     #champChart { display: block; }
 
     /* ── Tables ───────────────────────────────────────────────── */
-    .table-wrap {
-      overflow-x: auto;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-    }
+    .table-wrap { overflow-x: auto; }
 
     table {
       width: 100%;
@@ -190,33 +233,33 @@
     }
 
     thead th {
-      background: var(--surface);
+      background: var(--sand-solid);
       padding: 11px 16px;
       text-align: left;
       font-size: 0.72rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: .06em;
-      color: var(--text-muted);
-      border-bottom: 1px solid var(--border);
+      color: var(--ink-soft);
+      border-bottom: 1px solid var(--glass-border);
       cursor: pointer;
       user-select: none;
       white-space: nowrap;
     }
 
-    thead th:hover { color: var(--text); }
+    thead th:hover { color: var(--ink); }
 
-    thead th[data-dir="asc"]::after  { content: " \2191"; color: var(--green); }
-    thead th[data-dir="desc"]::after { content: " \2193"; color: var(--green); }
+    thead th[data-dir="asc"]::after  { content: " \2191"; color: var(--kelp); }
+    thead th[data-dir="desc"]::after { content: " \2193"; color: var(--kelp); }
 
     tbody tr {
-      border-bottom: 1px solid rgba(51,65,85,.45);
+      border-bottom: 1px solid var(--glass-border);
       transition: background .1s;
     }
 
     tbody tr:last-child { border-bottom: none; }
-    tbody tr:hover      { background: rgba(255,255,255,.035); }
-    tbody tr:nth-child(even) { background: rgba(255,255,255,.018); }
+    tbody tr:hover      { background: rgba(185,207,199,.22); }
+    tbody tr:nth-child(even) { background: rgba(75,107,98,.05); }
 
     td {
       padding: 9px 16px;
@@ -226,10 +269,10 @@
     td.num {
       text-align: right;
       font-variant-numeric: tabular-nums;
-      color: var(--text-muted);
+      color: var(--ink-soft);
     }
 
-    td.num strong { color: var(--text); }
+    td.num strong { color: var(--ink); }
 
     /* ── Team name cell ───────────────────────────────────────── */
     .team-name {
@@ -240,7 +283,7 @@
       white-space: nowrap;
     }
 
-    .team-name .star { color: var(--gold); font-size: .7rem; }
+    .team-name .star { color: var(--amber-glass); font-size: .7rem; }
 
     /* ── Progress bar cell ────────────────────────────────────── */
     .prog {
@@ -253,7 +296,7 @@
     .prog-track {
       flex: 1;
       height: 5px;
-      background: rgba(51,65,85,.8);
+      background: rgba(38,42,40,.10);
       border-radius: 999px;
       overflow: hidden;
     }
@@ -261,19 +304,20 @@
     .prog-fill {
       height: 100%;
       border-radius: 999px;
-      background: linear-gradient(90deg, #3b82f6 0%, #22c55e 100%);
+      background: linear-gradient(90deg, var(--seafoam-deep) 0%, var(--kelp) 100%);
     }
 
     .prog-pct {
       font-size: .79rem;
-      color: var(--text-muted);
+      color: var(--ink-soft);
       white-space: nowrap;
       min-width: 46px;
       text-align: right;
       font-variant-numeric: tabular-nums;
     }
 
-    /* ── Round badge ──────────────────────────────────────────── */
+    /* ── Round badge / bucket-rarity cells (see roundBadge() /
+       BUCKET_STYLE in the script below) ─────────────────────────── */
     .badge-round {
       display: inline-block;
       padding: 3px 10px;
@@ -284,9 +328,11 @@
       border: 1px solid transparent;
     }
 
+    .bucket-cell { border-radius: var(--radius-control); }
+
     /* ── Footer ───────────────────────────────────────────────── */
     footer {
-      border-top: 1px solid var(--border);
+      border-top: 1px solid var(--glass-border);
       padding: 24px 0;
     }
 
@@ -296,7 +342,7 @@
       flex-wrap: wrap;
       gap: 8px;
       font-size: .78rem;
-      color: var(--text-muted);
+      color: var(--ink-soft);
     }
 
     @media (max-width: 640px) {
@@ -319,9 +365,9 @@
       gap: 6px;
       padding: 6px 14px;
       border-radius: 999px;
-      background: rgba(59,130,246,.12);
-      border: 1px solid rgba(59,130,246,.35);
-      color: var(--text);
+      background: var(--glass-tint-kelp);
+      border: 1px solid rgba(75,107,98,.4);
+      color: var(--ink);
       font-size: .82rem;
       font-weight: 600;
       user-select: none;
@@ -330,7 +376,7 @@
 
     .round-switcher summary::-webkit-details-marker { display: none; }
     .round-switcher summary::marker { content: ""; }
-    .round-switcher summary .chevron { font-size: .7rem; color: var(--blue); transition: transform .15s; }
+    .round-switcher summary .chevron { font-size: .7rem; color: var(--kelp); transition: transform .15s; }
     .round-switcher[open] summary .chevron { transform: rotate(180deg); }
 
     .round-switcher-menu {
@@ -338,10 +384,10 @@
       top: calc(100% + 6px);
       right: 0;
       min-width: 230px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      box-shadow: 0 12px 24px rgba(0,0,0,.35);
+      background: var(--sand-solid);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-control);
+      box-shadow: 0 12px 24px rgba(38,42,40,.18);
       overflow: hidden;
       z-index: 20;
     }
@@ -352,26 +398,42 @@
       justify-content: space-between;
       gap: 8px;
       padding: 10px 14px;
-      color: var(--text-muted);
+      color: var(--ink-soft);
       text-decoration: none;
       font-size: .83rem;
       font-weight: 500;
-      border-bottom: 1px solid rgba(51,65,85,.5);
+      border-bottom: 1px solid var(--glass-border);
     }
 
     .round-switcher-menu a:last-child { border-bottom: none; }
-    .round-switcher-menu a:hover { background: rgba(255,255,255,.04); color: var(--text); }
-    .round-switcher-menu a.active { color: var(--text); background: rgba(59,130,246,.08); }
+    .round-switcher-menu a:hover { background: rgba(185,207,199,.25); color: var(--ink); }
+    .round-switcher-menu a.active { color: var(--ink); background: var(--glass-tint-kelp); }
 
     .round-switcher-menu .current-tag {
       font-size: .68rem;
       font-weight: 700;
-      color: var(--green);
-      background: rgba(34,197,94,.12);
-      border: 1px solid rgba(34,197,94,.3);
+      color: var(--kelp);
+      background: var(--glass-tint-seafoam);
+      border: 1px solid rgba(138,168,157,.5);
       padding: 1px 7px;
       border-radius: 999px;
       white-space: nowrap;
+    }
+
+    /* ── Reduced transparency / motion ────────────────────────── */
+    @media (prefers-reduced-transparency: reduce) {
+      .chart-wrap,
+      .table-wrap {
+        background: var(--sand-solid);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .chart-wrap, .table-wrap, .nav a, tbody tr, .round-switcher summary .chevron {
+        transition: none;
+      }
     }
   </style>
 </head>
@@ -502,7 +564,8 @@
       <p class="desc">
         Complete exit-round distribution for every team. Each row sums to 100%.
         <em>Exit R32</em> = lost in Round of 32; <em>3rd Place</em> = won the third-place play-off.
-        Click column headers to sort.
+        Column tint gets rarer left to right &mdash; most teams exit early (seafoam), almost none
+        reach <em>Champion</em> (cobalt). Click column headers to sort.
       </p>
     </div>
     <div class="table-wrap">
@@ -540,20 +603,36 @@
 // ── Embedded simulation data ────────────────────────────────────────────────
 const DATA = {{ data_json | safe }};
 
-// ── Round badge colours ─────────────────────────────────────────────────────
-const ROUND_STYLE = {
-  "Round of 32":   { bg: "rgba(220,38,38,.13)",  border: "rgba(220,38,38,.35)",  text: "#f87171" },
-  "Round of 16":   { bg: "rgba(234,88,12,.13)",  border: "rgba(234,88,12,.35)",  text: "#fb923c" },
-  "Quarter-final": { bg: "rgba(202,138,4,.13)",  border: "rgba(202,138,4,.35)",  text: "#facc15" },
-  "Semi-final":    { bg: "rgba(59,130,246,.13)", border: "rgba(59,130,246,.35)", text: "#60a5fa" },
-  "3rd Place":     { bg: "rgba(6,182,212,.13)",  border: "rgba(6,182,212,.35)",  text: "#22d3ee" },
-  "Runner-up":     { bg: "rgba(148,163,184,.13)",border: "rgba(148,163,184,.35)","text": "#cbd5e1" },
-  "Champion":      { bg: "rgba(245,158,11,.16)", border: "rgba(245,158,11,.45)", text: "#fbbf24" },
+// ── Bucket / round rarity ramp ───────────────────────────────────────────────
+// A genuine rarity gradient, not a decorative palette: most teams exit early
+// (seafoam, common), almost none reach Champion (cobalt-rare) — that scarcity
+// is why cobalt is reserved for this one bucket and not reused elsewhere on
+// the page (see the past-winner amber/ink-soft split in buildChampChart,
+// which is a separate binary distinction, not this ramp).
+const BUCKET_STYLE = {
+  "Round of 32":   { bg: "rgba(185,207,199,.30)", border: "rgba(138,168,157,.50)", text: "#4B6B62" },
+  "Round of 16":   { bg: "rgba(138,168,157,.30)", border: "rgba(75,107,98,.45)",   text: "#3f5951" },
+  "Quarter-final": { bg: "rgba(75,107,98,.20)",   border: "rgba(75,107,98,.50)",   text: "#3a5049" },
+  "Semi-final":    { bg: "rgba(201,138,85,.18)",  border: "rgba(201,138,85,.40)",  text: "#a06a3d" },
+  "3rd Place":     { bg: "rgba(201,138,85,.26)",  border: "rgba(201,138,85,.50)",  text: "#8f5c33" },
+  "Runner-up":     { bg: "rgba(201,138,85,.34)",  border: "rgba(201,138,85,.60)",  text: "#7a4d2a" },
+  "Champion":      { bg: "rgba(62,90,130,.22)",   border: "rgba(62,90,130,.65)",   text: "#3E5A82" },
 };
 
 // Round sort order (for sorting by round name)
 const ROUND_ORDER = [
   "Round of 32","Round of 16","Quarter-final","Semi-final","3rd Place","Runner-up","Champion"
+];
+
+// Full-breakdown table columns, in render order, mapped onto the same ramp.
+const BUCKET_COLUMNS = [
+  { key: "exit_r32",    label: "Round of 32" },
+  { key: "exit_r16",    label: "Round of 16" },
+  { key: "exit_qf",     label: "Quarter-final" },
+  { key: "exit_sf",     label: "Semi-final" },
+  { key: "third_place", label: "3rd Place" },
+  { key: "runner_up",   label: "Runner-up" },
+  { key: "champion",    label: "Champion" },
 ];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -575,8 +654,8 @@ function progCell(value) {
 }
 
 function roundBadge(label) {
-  const s = ROUND_STYLE[label] || {};
-  return `<span class="badge-round" style="background:${s.bg||"#1e293b"};border-color:${s.border||"#334155"};color:${s.text||"#94a3b8"}">${label}</span>`;
+  const s = BUCKET_STYLE[label] || {};
+  return `<span class="badge-round" style="background:${s.bg||"#EFEADF"};border-color:${s.border||"rgba(38,42,40,.10)"};color:${s.text||"#5B615D"}">${label}</span>`;
 }
 
 function numCell(v, bold) {
@@ -589,11 +668,13 @@ function numCell(v, bold) {
   const sorted = [...DATA.teams].sort((a, b) => b.champion - a.champion);
   const labels = sorted.map(t => t.team);
   const values = sorted.map(t => t.champion);
+  // Binary past-winner distinction (amber-glass vs. neutral ink-soft) — not
+  // the same thing as the champion-bucket rarity color above.
   const bgColors = sorted.map(t =>
-    t.is_past_winner ? "rgba(245,158,11,.8)" : "rgba(34,197,94,.72)"
+    t.is_past_winner ? "rgba(201,138,85,.75)" : "rgba(91,97,93,.45)"
   );
   const borderColors = sorted.map(t =>
-    t.is_past_winner ? "#f59e0b" : "#22c55e"
+    t.is_past_winner ? "#C98A55" : "#5B615D"
   );
 
   // Dynamic height: ~26px per bar + fixed overhead
@@ -628,18 +709,18 @@ function numCell(v, bold) {
       },
       scales: {
         x: {
-          grid:   { color: "rgba(51,65,85,.5)" },
-          border: { color: "#334155" },
-          ticks:  { color: "#94a3b8", callback: v => v + "%" },
-          title:  { display: true, text: "Championship probability (%)", color: "#64748b", font: { size: 11 } },
+          grid:   { color: "rgba(38,42,40,.12)" },
+          border: { color: "rgba(38,42,40,.20)" },
+          ticks:  { color: "#5B615D", callback: v => v + "%" },
+          title:  { display: true, text: "Championship probability (%)", color: "#5B615D", font: { size: 11 } },
         },
         y: {
           grid:   { display: false },
-          border: { color: "#334155" },
+          border: { color: "rgba(38,42,40,.20)" },
           ticks: {
             color: (ctx) => {
               const t = sorted[ctx.index];
-              return t && t.is_past_winner ? "#f59e0b" : "#f1f5f9";
+              return t && t.is_past_winner ? "#8f5c33" : "#262A28";
             },
             font: { size: 12 },
           },
@@ -691,13 +772,15 @@ function numCell(v, bold) {
   const body = document.getElementById("fullBody");
   DATA.teams.forEach(t => {
     const tr = document.createElement("tr");
-    const buckets = [t.exit_r32, t.exit_r16, t.exit_qf, t.exit_sf, t.third_place, t.runner_up, t.champion];
+    const buckets = BUCKET_COLUMNS.map(c => t[c.key]);
     const maxVal  = Math.max(...buckets);
     tr.innerHTML =
       teamCell(t.team, t.is_past_winner) +
       buckets.map((v, i) => {
-        const cells = tr.querySelectorAll ? null : null; // placeholder
-        return `<td class="num" data-val="${v}">${v === maxVal ? `<strong>${v < 0.01 ? "&lt;0.01" : v.toFixed(2)}%</strong>` : (v < 0.01 ? "&lt;0.01%" : v.toFixed(2) + "%")}</td>`;
+        const style = BUCKET_STYLE[BUCKET_COLUMNS[i].label];
+        const txt = v < 0.01 ? "&lt;0.01" : v.toFixed(2);
+        const inner = v === maxVal ? `<strong>${txt}%</strong>` : txt + "%";
+        return `<td class="num bucket-cell" data-val="${v}" style="background:${style.bg};color:${style.text}">${inner}</td>`;
       }).join("");
     body.appendChild(tr);
   });

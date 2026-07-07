@@ -1,4 +1,9 @@
 world-cup-simulation.lalutir.com {
     root * /home/lalutir/world-cup-predictor
+    # No Cache-Control/ETag was being sent, so browsers fell back to
+    # heuristic caching and could keep serving a stale page after a
+    # redeploy until the user hard-refreshed. Force revalidation instead
+    # (still fast: the server 304s if the file hasn't changed).
+    header Cache-Control "no-cache"
     file_server
 }

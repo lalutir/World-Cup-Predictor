@@ -327,6 +327,14 @@ section as historical design rationale where it conflicts with the above.
   That Caddyfile is **not** deployed by `scripts/deploy_site.sh` (which only copies `site/`) — copy
   it to the droplet's `/etc/caddy/conf.d/world-cup.caddy` and `sudo systemctl reload caddy` by hand
   whenever it changes.
+- **`header Cache-Control "no-cache"` is set on this Caddyfile (added 2026-07-07).** `file_server`
+  with no explicit cache headers sends `Last-Modified` but no `Cache-Control`/`ETag`, so browsers
+  fall back to heuristic caching and can keep showing a pre-redeploy page until the user
+  hard-refreshes — this bit us during the Seaglass theme rollout (some pages looked "not updated"
+  in a normal browser tab while `curl` — which never uses a cache — always saw the current file).
+  `no-cache` still lets the browser cache the response but forces a revalidation request on every
+  load; the server 304s if the file is unchanged, so it's effectively free on a low-traffic static
+  site. Don't remove this without replacing it with some other explicit caching strategy.
 
 ### Page Content
 
@@ -349,6 +357,62 @@ described in [Simulation Engine](#simulation-engine) above, which already sum to
 Sort by championship % descending. Worth adding one derived column for readability: **Most Likely
 Exit Round** (the argmax of the six probabilities for that team) — a single human-readable summary
 sitting next to the full breakdown, not a replacement for it.
+
+### Design System — Seaglass
+
+**Built as of 2026-07-07.** Both `src/site/templates/index.html.j2` and `landing.html.j2` use
+**Seaglass** — the same soft, tinted-glass design system as `lalutir.com` (the parent domain this
+site is a subdomain of). Source of truth for the actual token values is
+`lalutir.com/assets/css/tokens.css` and that repo's own `CLAUDE.md`; this project has **no shared
+asset pipeline** (self-contained Jinja2 templates, no build step, no static asset copying in
+`build_site.py`), so the token values are **inlined as CSS custom properties in both templates'
+`<style>` blocks** rather than linked. If `lalutir.com`'s tokens.css ever changes, update both
+copies here by hand — nothing enforces they stay in sync.
+
+Core palette: `--sand` (warm background, never pure white), tinted glass panels (`--glass-tint-*`,
+never plain white/grey translucent), `--kelp`/`--seafoam`/`--amber-glass` as general-purpose
+accents, and `--cobalt-rare` reserved for **one thing per screen, max** — its scarcity is the
+point. Fraunces (display headings, forced to its low-`opsz` cut via
+`font-variation-settings: 'opsz' 12` so it stays soft at large sizes) + Hanken Grotesk (body), both
+loaded from Google Fonts.
+
+**The one dashboard-specific design decision**: the 7-bucket exit-round scale
+(`exit_r32 → exit_r16 → exit_qf → exit_sf → third_place → runner_up → champion`) is a genuine
+rarity gradient — most teams exit early, almost none reach champion. `index.html.j2` maps this to
+a color ramp that gets rarer alongside the bucket (seafoam → kelp → amber → cobalt), applied to
+both the Full Breakdown table's per-column cell tinting and the `roundBadge()` "Most Common Finish"
+pills (`BUCKET_STYLE` in the inline `<script>`). This is the documented functional-color exception
+to the "`--cobalt-rare` once per screen" rule: it's a data category that means the same specific
+thing (the champion outcome) every time it appears, not a decorative accent. Keep this distinct
+from the championship-odds bar chart's separate, binary past-winner-vs-not color split
+(`buildChampChart()`: amber-glass vs. neutral ink-soft) — don't conflate the two color logics if
+touching either function.
+
+Chart.js can't resolve CSS `var()` inside a `<canvas>` 2D context, so `buildChampChart()`'s colors
+(bars, grid lines, axis ticks/title) are literal hex/rgba values manually kept in sync with the
+`:root` tokens above — there's no way to make Chart.js reference the custom properties directly.
+
+Since `data/site_archive/*.json` snapshots are re-rendered from the *current* templates on every
+`build_site()` call (round pages aren't baked once and frozen), a template-only styling change
+doesn't require touching the archives — just rerun the build (or re-render from existing archives
+without recomputing stats, if you don't want to rerun the simulation) so every archived round picks
+up the new look instead of showing two different designs depending on which round you're viewing.
+
+**Gotcha: no `backdrop-filter` on `.header` / `header`, in either template.** It was there
+originally (matching the other glass panels) and caused a real bug: the round-switcher dropdown
+(`.round-switcher-menu`, `position: absolute`, a descendant of `.header`) rendered with only its
+first ~2 items visible, cut off as if the container were shorter than its own children — even
+though DOM inspection showed the correct child count, correct per-item heights, and a computed
+container height tall enough for all of them. Root cause confirmed by direct A/B test: Chromium
+visually clips absolutely-positioned descendants that overflow a `backdrop-filter` ancestor's
+border box, even though nothing in the CSS asks for that (not an `overflow: hidden` issue, and not
+spec'd clipping — a real rendering quirk). Removing `backdrop-filter`/`-webkit-backdrop-filter`
+from `.header` fixed it outright. This cost nothing visually since the header's background is just
+a flat gradient tint over solid `--sand` — there's nothing "busy" behind it for the blur to affect
+— so don't re-add it there. If a future header-like element ever needs both a real backdrop blur
+*and* an overflowing absolutely-positioned dropdown/popover, that combination needs a different
+approach (e.g. rendering the popover outside the blurred ancestor, or via `position: fixed` with
+JS-computed coordinates), not backdrop-filter directly on the ancestor.
 
 ### Visualization & Metric Ideas (Beyond the Two Requested Tables)
 

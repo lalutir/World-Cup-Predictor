@@ -4,25 +4,44 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>2026 FIFA World Cup Predictor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* Seaglass design tokens — mirrors lalutir.com/assets/css/tokens.css and
+       index.html.j2; inlined here too since this site has no shared asset
+       pipeline. Keep both templates' copies in sync by hand. */
     :root {
-      --bg:         #0f172a;
-      --surface:    #1e293b;
-      --border:     #334155;
-      --text:       #f1f5f9;
-      --text-muted: #94a3b8;
-      --green:      #22c55e;
-      --gold:       #f59e0b;
-      --blue:       #3b82f6;
+      --sand:          #F3EEE4;
+      --sand-solid:    #EFEADF;
+      --seafoam:       #B9CFC7;
+      --seafoam-deep:  #8AA89D;
+      --kelp:          #4B6B62;
+      --amber-glass:   #C98A55;
+      --cobalt-rare:   #3E5A82;
+      --ink:           #262A28;
+      --ink-soft:      #5B615D;
+
+      --glass-tint-seafoam: rgba(185, 207, 199, .38);
+      --glass-tint-amber:   rgba(201, 138, 85, .20);
+      --glass-tint-kelp:    rgba(75, 107, 98, .16);
+      --glass-border:       rgba(38, 42, 40, .10);
+      --glass-blur:         18px;
+      --glass-blur-deep:    30px;
+
+      --font-display: 'Fraunces', Georgia, serif;
+      --font-body:    'Hanken Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+
+      --radius-panel:   1.25rem;
+      --radius-control: 0.65rem;
     }
 
     body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-                   'Helvetica Neue', Arial, sans-serif;
+      background: var(--sand);
+      color: var(--ink);
+      font-family: var(--font-body);
       font-size: 15px;
       line-height: 1.5;
       min-height: 100vh;
@@ -32,17 +51,32 @@
 
     .container { max-width: 1000px; margin: 0 auto; padding: 0 24px; width: 100%; }
 
+    /* No backdrop-filter here — see index.html.j2's .header comment: a
+       flat gradient tint over solid --sand has nothing visible to blur,
+       and backdrop-filter on an ancestor can clip overflowing
+       absolutely-positioned descendants in Chromium (bit the
+       round-switcher dropdown on the other template). Kept consistent
+       here even though this header has no such descendant yet. */
     header {
-      background: linear-gradient(135deg, #0a1628 0%, #1a2f5a 50%, #0f2a4a 100%);
-      border-bottom: 1px solid var(--border);
+      background-color: var(--sand);
+      background-image: linear-gradient(135deg, var(--glass-tint-seafoam) 0%, var(--glass-tint-kelp) 100%);
+      border-bottom: 1px solid var(--glass-border);
       padding: 56px 0 40px;
       text-align: center;
     }
 
-    h1 { font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; }
-    h1 .accent { color: var(--gold); }
+    h1 {
+      font-family: var(--font-display);
+      font-optical-sizing: none;
+      font-variation-settings: 'opsz' 12;
+      font-size: 2rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+    }
+    h1 .accent { color: var(--amber-glass); }
 
-    .subtitle { margin-top: 10px; font-size: .95rem; color: var(--text-muted); }
+    .subtitle { margin-top: 10px; font-size: .95rem; color: var(--ink-soft); }
 
     main { flex: 1; padding: 48px 0; }
 
@@ -54,39 +88,53 @@
 
     .tile {
       display: block;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      background: var(--glass-tint-seafoam);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-panel);
       padding: 24px 20px;
       text-decoration: none;
-      color: var(--text);
-      transition: border-color .15s, transform .15s;
+      color: var(--ink);
+      transition: border-color .15s, transform .15s, background .4s ease;
     }
 
-    .tile:hover { border-color: var(--blue); transform: translateY(-2px); }
+    .tile:hover { border-color: var(--kelp); transform: translateY(-2px); }
 
     .tile-label { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
 
-    .tile-date { font-size: .8rem; color: var(--text-muted); }
+    .tile-date { font-size: .8rem; color: var(--ink-soft); }
 
     .current-tag {
       display: inline-block;
       margin-top: 12px;
       font-size: .68rem;
       font-weight: 700;
-      color: var(--green);
-      background: rgba(34,197,94,.12);
-      border: 1px solid rgba(34,197,94,.3);
+      color: var(--kelp);
+      background: var(--glass-tint-seafoam);
+      border: 1px solid rgba(138,168,157,.5);
       padding: 2px 8px;
       border-radius: 999px;
     }
 
     footer {
-      border-top: 1px solid var(--border);
+      border-top: 1px solid var(--glass-border);
       padding: 20px 0;
       text-align: center;
       font-size: .78rem;
-      color: var(--text-muted);
+      color: var(--ink-soft);
+    }
+
+    @media (prefers-reduced-transparency: reduce) {
+      .tile {
+        background: var(--sand-solid);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tile { transition: none; }
     }
   </style>
 </head>
