@@ -60,6 +60,65 @@ _BUCKET_LABELS: dict[str, str] = {
     "champion":    "Champion",
 }
 
+# ---------------------------------------------------------------------------
+# Per-round column visibility
+# ---------------------------------------------------------------------------
+#
+# Once the bracket has moved past a round, every team on that round's page
+# already survived it in real life -- so a "Reach <that round>" cell would
+# always read 100% and an "Exit <that round>" cell would always read 0%.
+# Both are dead weight once they're no longer live predictions, so they're
+# dropped from the "How Far Each Team Went" / "Full Probability Breakdown"
+# tables as the frontier round advances. `decided_by_round_index` is the
+# FRONTIER_ROUNDS index of the round each column threshold belongs to; a
+# column is hidden once the page's own round index has moved past it.
+
+_REACH_COLUMNS = [
+    {"key": "p_reach_r16",   "header": "Reach R16",   "decided_by_round_index": 0},
+    {"key": "p_reach_qf",    "header": "Reach QF",    "decided_by_round_index": 1},
+    {"key": "p_reach_sf",    "header": "Reach SF",    "decided_by_round_index": 2},
+    {"key": "p_reach_final", "header": "Reach Final", "decided_by_round_index": 3},
+]
+_WIN_IT_COLUMN = {"key": "champion", "header": "Win It"}
+
+_EXIT_COLUMNS = [
+    {"key": "exit_r32", "header": "Exit R32", "styleLabel": "Round of 32",   "decided_by_round_index": 0},
+    {"key": "exit_r16", "header": "Exit R16", "styleLabel": "Round of 16",   "decided_by_round_index": 1},
+    {"key": "exit_qf",  "header": "Exit QF",  "styleLabel": "Quarter-final", "decided_by_round_index": 2},
+    {"key": "exit_sf",  "header": "Exit SF",  "styleLabel": "Semi-final",    "decided_by_round_index": 3},
+]
+_ALWAYS_EXIT_COLUMNS = [
+    {"key": "third_place", "header": "3rd Place", "styleLabel": "3rd Place"},
+    {"key": "runner_up",   "header": "Runner-up", "styleLabel": "Runner-up"},
+    {"key": "champion",    "header": "Champion",  "styleLabel": "Champion"},
+]
+
+
+def _visible_adv_columns(round_index: int) -> list[dict]:
+    """"How Far Each Team Went" columns still worth showing at `round_index`:
+    reach thresholds not yet decided in real life, plus the always-shown
+    "Win It" column."""
+    cols = [
+        {"key": c["key"], "header": c["header"]}
+        for c in _REACH_COLUMNS
+        if c["decided_by_round_index"] >= round_index
+    ]
+    cols.append(_WIN_IT_COLUMN)
+    return cols
+
+
+def _visible_full_columns(round_index: int) -> list[dict]:
+    """"Full Probability Breakdown" columns still worth showing at
+    `round_index`: exit buckets not yet decided in real life, plus the
+    always-shown terminal buckets (3rd place / runner-up / champion)."""
+    cols = [
+        {"key": c["key"], "header": c["header"], "styleLabel": c["styleLabel"]}
+        for c in _EXIT_COLUMNS
+        if c["decided_by_round_index"] >= round_index
+    ]
+    cols.extend(_ALWAYS_EXIT_COLUMNS)
+    return cols
+
 
 # ---------------------------------------------------------------------------
 # Stat derivation
@@ -268,8 +327,16 @@ def build_site(
         nav_items = _build_nav_items(archived_slugs, latest_slug, active_slug)
         active_label = next(item["label"] for item in nav_items if item["active"])
 
+        round_index = sort_key(meta_for_slug(slug_payload["round_slug"]).round_name)
+        adv_columns = _visible_adv_columns(round_index)
+        full_columns = _visible_full_columns(round_index)
+
         html = template.render(
             data_json=json.dumps(slug_payload, separators=(",", ":")),
+            adv_columns=adv_columns,
+            adv_columns_json=json.dumps(adv_columns, separators=(",", ":")),
+            full_columns=full_columns,
+            full_columns_json=json.dumps(full_columns, separators=(",", ":")),
             n_sims_fmt=f"{slug_payload['n_sims']:,}",
             generated_at=_format_generated_at(slug_payload["generated_at"]),
             round_label=slug_payload["round_label"],

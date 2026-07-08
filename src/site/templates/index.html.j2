@@ -518,11 +518,9 @@
         <thead>
           <tr>
             <th data-col="0" data-type="s">Team</th>
-            <th data-col="1" data-type="n">Reach R16</th>
-            <th data-col="2" data-type="n">Reach QF</th>
-            <th data-col="3" data-type="n">Reach SF</th>
-            <th data-col="4" data-type="n">Reach Final</th>
-            <th data-col="5" data-type="n">Win It</th>
+            {% for col in adv_columns %}
+            <th data-col="{{ loop.index }}" data-type="n">{{ col.header }}</th>
+            {% endfor %}
           </tr>
         </thead>
         <tbody id="advBody"></tbody>
@@ -573,13 +571,9 @@
         <thead>
           <tr>
             <th data-col="0" data-type="s">Team</th>
-            <th data-col="1" data-type="n">Exit R32</th>
-            <th data-col="2" data-type="n">Exit R16</th>
-            <th data-col="3" data-type="n">Exit QF</th>
-            <th data-col="4" data-type="n">Exit SF</th>
-            <th data-col="5" data-type="n">3rd Place</th>
-            <th data-col="6" data-type="n">Runner-up</th>
-            <th data-col="7" data-type="n">Champion</th>
+            {% for col in full_columns %}
+            <th data-col="{{ loop.index }}" data-type="n">{{ col.header }}</th>
+            {% endfor %}
           </tr>
         </thead>
         <tbody id="fullBody"></tbody>
@@ -624,16 +618,12 @@ const ROUND_ORDER = [
   "Round of 32","Round of 16","Quarter-final","Semi-final","3rd Place","Runner-up","Champion"
 ];
 
-// Full-breakdown table columns, in render order, mapped onto the same ramp.
-const BUCKET_COLUMNS = [
-  { key: "exit_r32",    label: "Round of 32" },
-  { key: "exit_r16",    label: "Round of 16" },
-  { key: "exit_qf",     label: "Quarter-final" },
-  { key: "exit_sf",     label: "Semi-final" },
-  { key: "third_place", label: "3rd Place" },
-  { key: "runner_up",   label: "Runner-up" },
-  { key: "champion",    label: "Champion" },
-];
+// Column sets for this round's pages -- computed server-side in
+// build_site.py (_visible_adv_columns / _visible_full_columns) since which
+// columns are live predictions vs. already-decided-in-real-life depends on
+// how far the bracket has progressed. See that module for the hide rule.
+const ADV_COLUMNS = {{ adv_columns_json | safe }};
+const FULL_COLUMNS = {{ full_columns_json | safe }};
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function teamCell(team, isPastWinner) {
@@ -738,18 +728,9 @@ function numCell(v, bold) {
     // Store numeric sort values as data attributes on cells
     tr.innerHTML =
       teamCell(t.team, t.is_past_winner) +
-      progCell(t.p_reach_r16) +
-      progCell(t.p_reach_qf) +
-      progCell(t.p_reach_sf) +
-      progCell(t.p_reach_final) +
-      progCell(t.champion);
-    // Tag cells with raw values for sorting
+      ADV_COLUMNS.map(col => progCell(t[col.key])).join("");
     const cells = tr.querySelectorAll("td");
-    cells[1].dataset.val = t.p_reach_r16;
-    cells[2].dataset.val = t.p_reach_qf;
-    cells[3].dataset.val = t.p_reach_sf;
-    cells[4].dataset.val = t.p_reach_final;
-    cells[5].dataset.val = t.champion;
+    ADV_COLUMNS.forEach((col, i) => { cells[i + 1].dataset.val = t[col.key]; });
     body.appendChild(tr);
   });
 })();
@@ -772,12 +753,12 @@ function numCell(v, bold) {
   const body = document.getElementById("fullBody");
   DATA.teams.forEach(t => {
     const tr = document.createElement("tr");
-    const buckets = BUCKET_COLUMNS.map(c => t[c.key]);
+    const buckets = FULL_COLUMNS.map(c => t[c.key]);
     const maxVal  = Math.max(...buckets);
     tr.innerHTML =
       teamCell(t.team, t.is_past_winner) +
       buckets.map((v, i) => {
-        const style = BUCKET_STYLE[BUCKET_COLUMNS[i].label];
+        const style = BUCKET_STYLE[FULL_COLUMNS[i].styleLabel];
         const txt = v < 0.01 ? "&lt;0.01" : v.toFixed(2);
         const inner = v === maxVal ? `<strong>${txt}%</strong>` : txt + "%";
         return `<td class="num bucket-cell" data-val="${v}" style="background:${style.bg};color:${style.text}">${inner}</td>`;
