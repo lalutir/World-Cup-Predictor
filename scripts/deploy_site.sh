@@ -16,8 +16,17 @@
 #
 #   DROPLET_USER   SSH username on the droplet          (default: lalutir)
 #   DROPLET_HOST   Droplet IP address or hostname       (REQUIRED)
-#   REMOTE_PATH    Absolute path Caddy serves the site  (default: /home/lalutir/world-cup-predictor)
+#   REMOTE_PATH    Absolute path Caddy serves the site  (default: /home/lalutir/world-cup-predictor/site)
 #   SSH_KEY        Path to your private SSH key         (optional — omit if ssh-agent handles it)
+#
+# NOTE: as of 2026-07-12 the droplet also runs this pipeline itself on a cron
+# schedule (scripts/cron_pipeline.sh, via `git pull` + montecarlo.py --rebuild
+# run directly on the droplet -- see CLAUDE.md's "Results Website" section).
+# This script is now only needed for an ad-hoc manual push from a dev machine
+# between scheduled runs. REMOTE_PATH must stay pointed at the *site/*
+# subdirectory, not the repo root -- Caddy's root is that subdirectory, and
+# scp-ing into the repo root previously leaked the whole source tree
+# (including .git/) over HTTP.
 #
 # ── First-time Caddy setup (run once manually on the droplet) ─────────────────
 #   sudo mkdir -p /etc/caddy/conf.d
@@ -29,7 +38,7 @@ set -euo pipefail
 
 DROPLET_USER="${DROPLET_USER:-lalutir}"
 DROPLET_HOST="${DROPLET_HOST:-142.93.232.87}"
-REMOTE_PATH="${REMOTE_PATH:-/home/lalutir/world-cup-predictor}"
+REMOTE_PATH="${REMOTE_PATH:-/home/lalutir/world-cup-predictor/site}"
 SSH_KEY="${SSH_KEY:-}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

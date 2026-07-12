@@ -261,6 +261,16 @@ Single source of truth, so these don't drift between modules:
 - `home_team`/`away_team` use full country names (e.g. `"United States"`, not `"USA"`) — keep `crosswalk.py`'s canonical-name mapping consistent with that convention rather than introducing abbreviations.
 - `match_id` in `fixtures.csv` must be unique across the **whole file**, not just within a round — `BracketResolver` keys every match in a dict by `match_id`; two rows sharing an id (e.g. a Round of 32 match and the Third-place play-off both using `15`) cause the later row to silently overwrite the earlier one, so that match vanishes from the bracket with no error. This happened in production once real Round of 32 results started getting filled in.
 - Once a round fully resolves in real life, its `fixtures.csv` rows are often **deleted entirely** rather than left in with literal team names (nothing references their `W#`/`L#` placeholders anymore) — `BracketResolver.detect_frontier_round()` is built to handle this: an absent round is skipped when detecting the current round, not treated as unresolved.
+- `fixtures.csv`'s actual columns are `match_id,round,home_team,away_team,stadium,date` — this has
+  drifted from the `venue_city,venue_country,kickoff_date` schema proposed earlier in this doc (see
+  [Knockout Bracket & Fixtures](#3-knockout-bracket--fixtures)); `bracket.py` derives neutrality from
+  a `stadium` → host-country lookup table (`STADIUM_COUNTRY` in `bracket.py`) instead. Treat the
+  code as the source of truth over the originally-proposed schema.
+- `data/knockout_fixtures/` (unlike the rest of `data/`) **is git-tracked** — carved out of the
+  blanket `/data/*` gitignore rule the same way `data/site_archive/` is (see
+  [Constants for This Section](#constants-for-this-section)). This was necessary once the droplet
+  started running its own `git pull`-based cron pipeline (2026-07-12): a fixtures.csv edit that
+  only exists on your local machine is invisible to that pipeline until committed and pushed.
 
 ## Setup & Common Commands
 
@@ -273,7 +283,14 @@ scikit-learn>=1.4
 pytest>=8.0
 tqdm>=4.66
 python-dateutil>=2.9
+jinja2>=3.1
+pyarrow>=14.0
 ```
+`pyarrow` was missing until 2026-07-12 — `model.py`'s `features.to_parquet()` needs a parquet
+engine, and it happened to already be installed as a stray dependency in the local dev venv, which
+masked the gap until a fresh venv (on the droplet, for the cron pipeline) tried to install from
+`requirements.txt` alone and failed. If a fresh-venv install ever breaks again on a step that "works
+locally," suspect the same class of gap before anything else.
 
 Expected entry points (build these as you go, keep this list honest):
 ```bash
@@ -323,10 +340,20 @@ section as historical design rationale where it conflicts with the above.
   consistency; "Proxied" is the better default for a static page since it gets Cloudflare's
   CDN/caching/TLS for free.
 - On the droplet itself, **Caddy** (confirmed, not nginx as originally assumed here) serves the
-  site: `caddy/world-cup.caddy` — `root * /home/lalutir/world-cup-predictor` + `file_server`.
-  That Caddyfile is **not** deployed by `scripts/deploy_site.sh` (which only copies `site/`) — copy
-  it to the droplet's `/etc/caddy/conf.d/world-cup.caddy` and `sudo systemctl reload caddy` by hand
-  whenever it changes.
+  site: `caddy/world-cup.caddy` — `root * /home/lalutir/world-cup-predictor/site` + `file_server`.
+  That Caddyfile is **not** deployed automatically (neither by `scripts/deploy_site.sh` nor by the
+  cron pipeline below) — copy it to the droplet's `/etc/caddy/conf.d/world-cup.caddy` and
+  `sudo systemctl reload caddy` by hand whenever it changes.
+  - **Security incident (found & fixed 2026-07-12):** the root was originally
+    `/home/lalutir/world-cup-predictor` (the repo root, not `site/`), because the droplet also
+    hosts a full clone of this repo at that same path for the cron pipeline below. That meant
+    Caddy's `file_server` publicly served the *entire source tree* — `CLAUDE.md`, `requirements.txt`,
+    and even `.git/config` were all fetchable over HTTP. Root cause: `scripts/deploy_site.sh`'s old
+    default `REMOTE_PATH` scp'd `site/`'s contents directly into the repo root, mixing generated
+    output with source. Fixed by moving the repo's own `site/` subdirectory to be Caddy's root
+    instead — same layout as the local checkout, no HTTP exposure of anything outside generated
+    output. `deploy_site.sh`'s default `REMOTE_PATH` was updated to match
+    (`/home/lalutir/world-cup-predictor/site`); don't revert it back to the repo root.
 - **`header Cache-Control "no-cache"` is set on this Caddyfile (added 2026-07-07).** `file_server`
   with no explicit cache headers sends `Last-Modified` but no `Cache-Control`/`ETag`, so browsers
   fall back to heuristic caching and can keep showing a pre-redeploy page until the user
@@ -435,13 +462,37 @@ Nice-to-have, more build effort:
 - **Confederation rollup**: combined probability that *some* UEFA / CONMEBOL / CONCACAF / CAF / AFC
   / OFC team wins it. Needs a new team→confederation lookup table that doesn't exist yet anywhere
   in this repo — small addition to `crosswalk.py` if you want this one.
-- **Live re-runs during the tournament**: *(partially built)* — reruns are now safe and
-  non-destructive (each round's predictions archive permanently instead of being overwritten, and
-  the round tag is auto-detected from `fixtures.csv`), but *triggering* a rerun after each real
-  knockout result is still a manual step (rerun `montecarlo.py`, then redeploy) — nothing
-  automatically watches for real results yet. See the note in
-  [Simulation Engine](#simulation-engine) about Elo being frozen for a given run; that assumption
-  is still fine here.
+- **Live re-runs during the tournament**: *(built as of 2026-07-12)* — a cron job on the droplet
+  itself (`scripts/cron_pipeline.sh`, see [Build & Deploy Architecture](#build--deploy-architecture))
+  runs the full `git pull` → `fetch` → `train` → `simulate` → `build_site` pipeline directly on the
+  server, so no manual rerun-then-redeploy step is needed for a scheduled run. It does **not**
+  watch for real results automatically, though — it fires at specific cron times that were hand-set
+  to line up with when a round is expected to have concluded (currently one-off entries for
+  2026-07-12 and 2026-07-16, both 10:00 UTC / 12:00 CEST; see the crontab comments tagged
+  `WC_CRON_<date>` — each entry removes itself after firing once). Adding new scheduled runs for
+  future rounds (SF → Final) means adding new cron lines by hand; nothing generates them from the
+  tournament calendar automatically. See the note in [Simulation Engine](#simulation-engine) about
+  Elo being frozen for a given run; that assumption is still fine here.
+  - **Depends on `fixtures.csv` being pushed to `git` before each scheduled run** — the cron
+    pipeline's `git pull` is the only way it learns about newly-known bracket participants. If you
+    hand-edit `fixtures.csv` locally and don't commit + push before the next cron fire, that run
+    will simulate against stale bracket data.
+  - **Small droplet, no swap (961Mi RAM, 0 swap as of 2026-07-12)** — the full pipeline (data
+    fetch + model training + 1M-sim Monte Carlo) is memory-hungry enough that a run can be silently
+    OOM-killed with no traceback (this happened during setup, though the proximate trigger that day
+    was a bad `fixtures.csv` circular reference, not memory pressure alone — see below). Consider
+    adding a 1-2GB swapfile on the droplet (`fallocate`/`mkswap`/`swapon` + `/etc/fstab` entry,
+    needs `sudo`) if scheduled runs start failing silently; check
+    `logs/pipeline_*.log` in the repo root on the droplet first — a run that just stops mid-log
+    with no Python traceback is the OOM signature.
+  - **`fixtures.csv` placeholder chains must not be circular.** `W<id>`/`L<id>` slots are resolved
+    strictly in bracket order (earlier rounds first); a slot that references a *later* match (e.g.
+    a Semi-final row pointing at `W<final's own match_id>`) can never resolve and will crash the
+    simulator. This bit us once already (2026-07-12) from a hand-entry typo. `bracket.py` raises a
+    clean `KeyError` for this on a well-resourced machine, but on the droplet's constrained memory
+    the failure mode can look like a silent OOM instead of a clear error — always sanity-check that
+    every `W<id>`/`L<id>` in a not-yet-fully-known round points at a match from an *earlier* round
+    before pushing.
 
 ### Build & Deploy Architecture
 
@@ -469,9 +520,20 @@ site/                         # generated output — gitignored, this is what ge
     ├── index.html
     └── data/results.json
 scripts/
-└── deploy_site.sh            # scp site/ to the droplet, into the Caddy-served path (does NOT
-                               # deploy caddy/world-cup.caddy itself — see Hosting & DNS above)
+├── deploy_site.sh            # scp site/ to the droplet, into the Caddy-served path (does NOT
+│                              # deploy caddy/world-cup.caddy itself — see Hosting & DNS above).
+│                              # Manual/ad-hoc use only as of 2026-07-12 — the cron pipeline below
+│                              # covers scheduled rebuilds without needing this script.
+└── cron_pipeline.sh           # runs ON THE DROPLET via cron (git pull -> montecarlo.py --rebuild),
+                               # logs to logs/pipeline_<timestamp>.log, self-removes one-off cron
+                               # entries tagged with the marker passed as $1 — see Hosting & DNS
 ```
+
+The droplet holds its own full clone of this repo at `/home/lalutir/world-cup-predictor` (separate
+from Caddy's document root, which is that clone's `site/` subdirectory — see the security note in
+[Hosting & DNS](#hosting--dns)), with its own venv at `.venv/` and its own `data/` built by running
+the pipeline server-side. Nothing is scp'd for a scheduled run; `cron_pipeline.sh` produces `site/`
+in place.
 
 - `build_site.py` writes `data/results.json` under each round's own directory
   (`site/current/data/`, `site/round32/data/`, etc.) as that page's source of truth for its
@@ -510,10 +572,10 @@ scripts/
 - ~~Which web server is actually running on the droplet~~ — resolved: **Caddy**
   (`caddy/world-cup.caddy`), not nginx as originally assumed above.
 - DNS record type and proxy status to match your existing subdomains (CNAME vs A, proxied vs DNS-only) — still unconfirmed.
-- Rebuild cadence is still manual: rerun `python -m src.simulator.montecarlo`, then
-  `scripts/deploy_site.sh`. Nothing auto-triggers on real knockout results yet — the archiving
-  system (round auto-detection + permanent snapshots) is what makes manual reruns safe now, since
-  nothing gets lost, but you still have to remember to run it and redeploy.
+- ~~Rebuild cadence is still manual~~ — resolved 2026-07-12: a cron job on the droplet
+  (`scripts/cron_pipeline.sh`) now runs the full pipeline server-side at hand-picked times (see the
+  "Live re-runs" bullet above). Still not fully automatic — cron times are set by hand per expected
+  round completion, not derived from `fixtures.csv`'s kickoff dates or triggered by real results.
 
 ## When to commit
 
