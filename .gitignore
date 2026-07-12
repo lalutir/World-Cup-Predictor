@@ -1,9 +1,13 @@
 # Ignore the data directory, except the permanent per-round prediction
-# archive (data/site_archive/ -- see src/config.py SITE_ARCHIVE_DIR).
-# NOTE: this must be /data/* (not /data) for the negation below to work --
+# archive (data/site_archive/ -- see src/config.py SITE_ARCHIVE_DIR) and the
+# real knockout bracket (data/knockout_fixtures/ -- must be git-tracked so
+# that `git pull` on the droplet picks up hand-edits as rounds resolve; the
+# automated cron pipeline has no other way to see bracket updates).
+# NOTE: this must be /data/* (not /data) for the negations below to work --
 # git cannot re-include a child of a wholesale-excluded parent directory.
 /data/*
 !/data/site_archive
+!/data/knockout_fixtures
 
 # Ignore the virtual environment directory
 /wc-predictor
