@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2026 FIFA World Cup Predictor — Semi Final</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Seaglass design tokens — mirrors lalutir.com/assets/css/tokens.css.
+       This site has no shared asset pipeline (self-contained Jinja2
+       templates, no build step), so the values are inlined here and on
+       landing.html.j2 rather than linked; keep both in sync by hand if
+       the source tokens.css ever changes. */
+    :root {
+      --sand:          #F3EEE4;
+      --sand-solid:    #EFEADF;
+      --seafoam:       #B9CFC7;
+      --seafoam-deep:  #8AA89D;
+      --kelp:          #4B6B62;
+      --amber-glass:   #C98A55;
+      --cobalt-rare:   #3E5A82;
+      --ink:           #262A28;
+      --ink-soft:      #5B615D;
+
+      --glass-tint-seafoam: rgba(185, 207, 199, .38);
+      --glass-tint-amber:   rgba(201, 138, 85, .20);
+      --glass-tint-kelp:    rgba(75, 107, 98, .16);
+      --glass-border:       rgba(38, 42, 40, .10);
+      --glass-blur:         18px;
+      --glass-blur-deep:    30px;
+
+      --font-display: 'Fraunces', Georgia, serif;
+      --font-body:    'Hanken Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+
+      --radius-panel:   1.25rem;
+      --radius-control: 0.65rem;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--sand);
+      color: var(--ink);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    /* Display type: force the low-opsz cut of Fraunces so it stays soft
+       even at large sizes — left on auto it snaps to a tighter, higher-
+       contrast cut, which fights the whole point. */
+    .font-display {
+      font-family: var(--font-display);
+      font-optical-sizing: none;
+      font-variation-settings: 'opsz' 12;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────── */
+    .container { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── Header ───────────────────────────────────────────────── */
+    /* No backdrop-filter here (unlike the other glass panels): the header
+       contains the round-switcher dropdown, an absolutely-positioned
+       element that overflows the header's own box. Chromium visually
+       clips overflowing absolutely-positioned descendants to a
+       backdrop-filter ancestor's border box (a real rendering quirk, not
+       a spec'd clipping rule) — with the header's own background already
+       just a flat gradient tint over solid --sand, the blur added
+       nothing visible anyway, so dropping it is the actual fix, not a
+       workaround. */
+    .header {
+      background-color: var(--sand);
+      background-image: linear-gradient(135deg, var(--glass-tint-seafoam) 0%, var(--glass-tint-kelp) 100%);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 36px 0 28px;
+    }
+
+    .header-inner {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .header-title h1 {
+      font-family: var(--font-display);
+      font-optical-sizing: none;
+      font-variation-settings: 'opsz' 12;
+      font-size: 1.9rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+      color: var(--ink);
+    }
+
+    .header-title h1 .accent { color: var(--amber-glass); }
+
+    .header-title .subtitle {
+      margin-top: 6px;
+      font-size: 0.875rem;
+      color: var(--ink-soft);
+    }
+
+    .header-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .pill-green {
+      background: var(--glass-tint-seafoam);
+      border: 1px solid rgba(138,168,157,.5);
+      color: var(--kelp);
+    }
+
+    .pill-gold {
+      background: var(--glass-tint-amber);
+      border: 1px solid rgba(201,138,85,.45);
+      color: #8f5c33;
+    }
+
+    .pill-blue {
+      background: var(--glass-tint-kelp);
+      border: 1px solid rgba(75,107,98,.4);
+      color: var(--kelp);
+    }
+
+    .header-meta {
+      text-align: right;
+      font-size: 0.8rem;
+      color: var(--ink-soft);
+      line-height: 1.8;
+    }
+
+    .header-meta strong { color: var(--ink); font-size: 1rem; }
+
+    /* ── Nav bar ──────────────────────────────────────────────── */
+    .nav {
+      background: var(--sand-solid);
+      border-bottom: 1px solid var(--glass-border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .nav-inner {
+      display: flex;
+      gap: 0;
+      overflow-x: auto;
+    }
+
+    .nav a {
+      padding: 14px 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--ink-soft);
+      text-decoration: none;
+      white-space: nowrap;
+      border-bottom: 2px solid transparent;
+      transition: color .15s, border-color .15s;
+    }
+
+    .nav a:hover { color: var(--ink); border-bottom-color: var(--kelp); }
+
+    /* ── Sections ─────────────────────────────────────────────── */
+    .section {
+      padding: 48px 0;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .section:last-of-type { border-bottom: none; }
+
+    .section-header { margin-bottom: 28px; }
+
+    .section-header h2 {
+      font-family: var(--font-display);
+      font-optical-sizing: none;
+      font-variation-settings: 'opsz' 12;
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+
+    .section-header .desc {
+      font-size: 0.85rem;
+      color: var(--ink-soft);
+    }
+
+    .section-header .desc .star { color: var(--amber-glass); }
+
+    /* ── Glass panel base (chart + table wraps) ──────────────────── */
+    .chart-wrap,
+    .table-wrap {
+      background: var(--glass-tint-seafoam);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-panel);
+      transition: backdrop-filter .4s ease, background .4s ease;
+    }
+
+    /* ── Chart ────────────────────────────────────────────────── */
+    .chart-wrap { padding: 24px; }
+
+    #champChart { display: block; }
+
+    /* ── Tables ───────────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+
+    thead th {
+      background: var(--sand-solid);
+      padding: 11px 16px;
+      text-align: left;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--ink-soft);
+      border-bottom: 1px solid var(--glass-border);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    thead th:hover { color: var(--ink); }
+
+    thead th[data-dir="asc"]::after  { content: " \2191"; color: var(--kelp); }
+    thead th[data-dir="desc"]::after { content: " \2193"; color: var(--kelp); }
+
+    tbody tr {
+      border-bottom: 1px solid var(--glass-border);
+      transition: background .1s;
+    }
+
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover      { background: rgba(185,207,199,.22); }
+    tbody tr:nth-child(even) { background: rgba(75,107,98,.05); }
+
+    td {
+      padding: 9px 16px;
+      vertical-align: middle;
+    }
+
+    td.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink-soft);
+    }
+
+    td.num strong { color: var(--ink); }
+
+    /* ── Team name cell ───────────────────────────────────────── */
+    .team-name {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .team-name .star { color: var(--amber-glass); font-size: .7rem; }
+
+    /* ── Progress bar cell ────────────────────────────────────── */
+    .prog {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 110px;
+    }
+
+    .prog-track {
+      flex: 1;
+      height: 5px;
+      background: rgba(38,42,40,.10);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .prog-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--seafoam-deep) 0%, var(--kelp) 100%);
+    }
+
+    .prog-pct {
+      font-size: .79rem;
+      color: var(--ink-soft);
+      white-space: nowrap;
+      min-width: 46px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Round badge / bucket-rarity cells (see roundBadge() /
+       BUCKET_STYLE in the script below) ─────────────────────────── */
+    .badge-round {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: .75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+
+    .bucket-cell { border-radius: var(--radius-control); }
+
+    /* ── Footer ───────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--glass-border);
+      padding: 24px 0;
+    }
+
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: .78rem;
+      color: var(--ink-soft);
+    }
+
+    @media (max-width: 640px) {
+      .header-title h1 { font-size: 1.4rem; }
+      .header-meta { text-align: left; }
+      .round-switcher-menu { right: auto; left: 0; }
+    }
+
+    /* ── Round switcher ───────────────────────────────────────── */
+    .round-switcher {
+      position: relative;
+      display: inline-block;
+    }
+
+    .round-switcher summary {
+      list-style: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: var(--glass-tint-kelp);
+      border: 1px solid rgba(75,107,98,.4);
+      color: var(--ink);
+      font-size: .82rem;
+      font-weight: 600;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .round-switcher summary::-webkit-details-marker { display: none; }
+    .round-switcher summary::marker { content: ""; }
+    .round-switcher summary .chevron { font-size: .7rem; color: var(--kelp); transition: transform .15s; }
+    .round-switcher[open] summary .chevron { transform: rotate(180deg); }
+
+    .round-switcher-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      min-width: 230px;
+      background: var(--sand-solid);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-control);
+      box-shadow: 0 12px 24px rgba(38,42,40,.18);
+      overflow: hidden;
+      z-index: 20;
+    }
+
+    .round-switcher-menu a {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 14px;
+      color: var(--ink-soft);
+      text-decoration: none;
+      font-size: .83rem;
+      font-weight: 500;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .round-switcher-menu a:last-child { border-bottom: none; }
+    .round-switcher-menu a:hover { background: rgba(185,207,199,.25); color: var(--ink); }
+    .round-switcher-menu a.active { color: var(--ink); background: var(--glass-tint-kelp); }
+
+    .round-switcher-menu .current-tag {
+      font-size: .68rem;
+      font-weight: 700;
+      color: var(--kelp);
+      background: var(--glass-tint-seafoam);
+      border: 1px solid rgba(138,168,157,.5);
+      padding: 1px 7px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    /* ── Reduced transparency / motion ────────────────────────── */
+    @media (prefers-reduced-transparency: reduce) {
+      .chart-wrap,
+      .table-wrap {
+        background: var(--sand-solid);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .chart-wrap, .table-wrap, .nav a, tbody tr, .round-switcher summary .chevron {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────── -->
+<header class="header">
+  <div class="container">
+    <div class="header-inner">
+      <div class="header-title">
+        <h1>2026 FIFA World Cup <span class="accent">Predictor</span></h1>
+        <div class="subtitle">Knockout phase Monte Carlo simulation &mdash; Round of 32 through Final</div>
+        <div class="header-pills">
+          <span class="pill pill-blue">Semi Final</span>
+          <span class="pill pill-green">1,000,000 simulations</span>
+          <span class="pill pill-gold">&#9733; = past World Cup winner</span>
+        </div>
+      </div>
+      <div class="header-meta">
+        <details class="round-switcher">
+          <summary>Predictions Semi Final <span class="chevron">&#9662;</span></summary>
+          <div class="round-switcher-menu">
+            
+            <a href="/current/" >
+              <span>Current Predictions</span>
+              
+            </a>
+            
+            <a href="/final/" >
+              <span>Predictions Final</span>
+              <span class="current-tag">current</span>
+            </a>
+            
+            <a href="/semifinal/" class="active">
+              <span>Predictions Semi Final</span>
+              
+            </a>
+            
+            <a href="/quarterfinal/" >
+              <span>Predictions Quarter Final</span>
+              
+            </a>
+            
+            <a href="/round16/" >
+              <span>Predictions Round of 16</span>
+              
+            </a>
+            
+            <a href="/round32/" >
+              <span>Predictions Round of 32</span>
+              
+            </a>
+            
+          </div>
+        </details>
+        <div style="margin-top:10px">Generated</div>
+        <strong>2026-07-12 10:00 UTC</strong>
+        <div style="margin-top:4px;font-size:.72rem">world-cup-simulation.lalutir.com</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ── Navigation ─────────────────────────────────────────────── -->
+<nav class="nav">
+  <div class="container">
+    <div class="nav-inner">
+      <a href="#champ">Championship Odds</a>
+      <a href="#progress">How Far Each Team Went</a>
+      <a href="#exit">Most Common Exit Round</a>
+      <a href="#full">Full Breakdown</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+<!-- ── Section 1: Championship Odds ──────────────────────────── -->
+<section class="section" id="champ">
+  <div class="container">
+    <div class="section-header">
+      <h2>Championship Odds</h2>
+      <p class="desc">
+        Probability of winning the 2026 FIFA World Cup, from 1,000,000 simulated brackets.
+        <span class="star">&#9733;</span> marks past World Cup winners.
+      </p>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="champCanvas"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- ── Section 2: How Far Each Team Went ─────────────────────── -->
+<section class="section" id="progress">
+  <div class="container">
+    <div class="section-header">
+      <h2>How Far Each Team Went</h2>
+      <p class="desc">
+        Cumulative probability of advancing to each round. A team that exits in the
+        Quarter-final still counts toward &ldquo;Reach R16&rdquo; and &ldquo;Reach QF.&rdquo;
+        Click any column header to sort.
+      </p>
+    </div>
+    <div class="table-wrap">
+      <table id="advTable">
+        <thead>
+          <tr>
+            <th data-col="0" data-type="s">Team</th>
+            
+            <th data-col="1" data-type="n">Reach Final</th>
+            
+            <th data-col="2" data-type="n">Win It</th>
+            
+          </tr>
+        </thead>
+        <tbody id="advBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── Section 3: Most Common Exit ───────────────────────────── -->
+<section class="section" id="exit">
+  <div class="container">
+    <div class="section-header">
+      <h2>Most Common Finishing Round</h2>
+      <p class="desc">
+        The single round where each team most frequently finishes across all simulations &mdash;
+        i.e., the mode of the outcome distribution. Click column headers to sort.
+      </p>
+    </div>
+    <div class="table-wrap">
+      <table id="exitTable">
+        <thead>
+          <tr>
+            <th data-col="0" data-type="s">Team</th>
+            <th data-col="1" data-type="s">Most Common Finish</th>
+            <th data-col="2" data-type="n">In this % of sims</th>
+          </tr>
+        </thead>
+        <tbody id="exitBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── Section 4: Full Breakdown ─────────────────────────────── -->
+<section class="section" id="full">
+  <div class="container">
+    <div class="section-header">
+      <h2>Full Probability Breakdown</h2>
+      <p class="desc">
+        Complete exit-round distribution for every team. Each row sums to 100%.
+        <em>Exit R32</em> = lost in Round of 32; <em>3rd Place</em> = won the third-place play-off.
+        Column tint gets rarer left to right &mdash; most teams exit early (seafoam), almost none
+        reach <em>Champion</em> (cobalt). Click column headers to sort.
+      </p>
+    </div>
+    <div class="table-wrap">
+      <table id="fullTable">
+        <thead>
+          <tr>
+            <th data-col="0" data-type="s">Team</th>
+            
+            <th data-col="1" data-type="n">Exit SF</th>
+            
+            <th data-col="2" data-type="n">3rd Place</th>
+            
+            <th data-col="3" data-type="n">Runner-up</th>
+            
+            <th data-col="4" data-type="n">Champion</th>
+            
+          </tr>
+        </thead>
+        <tbody id="fullBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <span>1,000,000 Monte Carlo simulations &mdash; knockout phase only (Round of 32 onward)</span>
+      <span>Data: martj42/international_results &bull; World Bank WDI &bull; 2026-07-12 10:00 UTC</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ── Embedded simulation data ────────────────────────────────────────────────
+const DATA = {"generated_at":"2026-07-12T10:00:32.597231+00:00","n_sims":1000000,"round_slug":"semifinal","round_label":"Semi Final","teams":[{"team":"Spain","is_past_winner":true,"exit_r32":0.0,"exit_r16":0.0,"exit_qf":0.0,"exit_sf":18.6947,"third_place":29.1985,"runner_up":20.9196,"champion":31.1872,"p_reach_r16":100.0,"p_reach_qf":100.0,"p_reach_sf":100.0,"p_reach_final":52.1068,"most_likely_exit":"Champion","most_likely_exit_pct":31.1872},{"team":"France","is_past_winner":true,"exit_r32":0.0,"exit_r16":0.0,"exit_qf":0.0,"exit_sf":21.3614,"third_place":30.7454,"runner_up":20.0607,"champion":27.8325,"p_reach_r16":100.0,"p_reach_qf":100.0,"p_reach_sf":100.0,"p_reach_final":47.8932,"most_likely_exit":"3rd Place","most_likely_exit_pct":30.7454},{"team":"Argentina","is_past_winner":true,"exit_r32":0.0,"exit_r16":0.0,"exit_qf":0.0,"exit_sf":24.1461,"third_place":20.2992,"runner_up":30.3424,"champion":25.2123,"p_reach_r16":100.0,"p_reach_qf":100.0,"p_reach_sf":100.0,"p_reach_final":55.5547,"most_likely_exit":"Runner-up","most_likely_exit_pct":30.3424},{"team":"England","is_past_winner":true,"exit_r32":0.0,"exit_r16":0.0,"exit_qf":0.0,"exit_sf":35.7978,"third_place":19.7569,"runner_up":28.6773,"champion":15.768,"p_reach_r16":100.0,"p_reach_qf":100.0,"p_reach_sf":100.0,"p_reach_final":44.4453,"most_likely_exit":"Semi-final","most_likely_exit_pct":35.7978}]};
+
+// ── Bucket / round rarity ramp ───────────────────────────────────────────────
+// A genuine rarity gradient, not a decorative palette: most teams exit early
+// (seafoam, common), almost none reach Champion (cobalt-rare) — that scarcity
+// is why cobalt is reserved for this one bucket and not reused elsewhere on
+// the page (see the past-winner amber/ink-soft split in buildChampChart,
+// which is a separate binary distinction, not this ramp).
+const BUCKET_STYLE = {
+  "Round of 32":   { bg: "rgba(185,207,199,.30)", border: "rgba(138,168,157,.50)", text: "#4B6B62" },
+  "Round of 16":   { bg: "rgba(138,168,157,.30)", border: "rgba(75,107,98,.45)",   text: "#3f5951" },
+  "Quarter-final": { bg: "rgba(75,107,98,.20)",   border: "rgba(75,107,98,.50)",   text: "#3a5049" },
+  "Semi-final":    { bg: "rgba(201,138,85,.18)",  border: "rgba(201,138,85,.40)",  text: "#a06a3d" },
+  "3rd Place":     { bg: "rgba(201,138,85,.26)",  border: "rgba(201,138,85,.50)",  text: "#8f5c33" },
+  "Runner-up":     { bg: "rgba(201,138,85,.34)",  border: "rgba(201,138,85,.60)",  text: "#7a4d2a" },
+  "Champion":      { bg: "rgba(62,90,130,.22)",   border: "rgba(62,90,130,.65)",   text: "#3E5A82" },
+};
+
+// Round sort order (for sorting by round name)
+const ROUND_ORDER = [
+  "Round of 32","Round of 16","Quarter-final","Semi-final","3rd Place","Runner-up","Champion"
+];
+
+// Column sets for this round's pages -- computed server-side in
+// build_site.py (_visible_adv_columns / _visible_full_columns) since which
+// columns are live predictions vs. already-decided-in-real-life depends on
+// how far the bracket has progressed. See that module for the hide rule.
+const ADV_COLUMNS = [{"key":"p_reach_final","header":"Reach Final"},{"key":"champion","header":"Win It"}];
+const FULL_COLUMNS = [{"key":"exit_sf","header":"Exit SF","styleLabel":"Semi-final"},{"key":"third_place","header":"3rd Place","styleLabel":"3rd Place"},{"key":"runner_up","header":"Runner-up","styleLabel":"Runner-up"},{"key":"champion","header":"Champion","styleLabel":"Champion"}];
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function teamCell(team, isPastWinner) {
+  const star = isPastWinner
+    ? `<span class="star" title="Past World Cup winner">&#9733;</span>`
+    : "";
+  return `<td><div class="team-name">${star}${team}</div></td>`;
+}
+
+function progCell(value) {
+  const pct = Math.min(100, Math.max(0, value));
+  const fillW = pct.toFixed(2);
+  const label = pct < 0.01 ? "<0.01%" : pct.toFixed(2) + "%";
+  return `<td><div class="prog">
+    <div class="prog-track"><div class="prog-fill" style="width:${fillW}%"></div></div>
+    <span class="prog-pct">${label}</span>
+  </div></td>`;
+}
+
+function roundBadge(label) {
+  const s = BUCKET_STYLE[label] || {};
+  return `<span class="badge-round" style="background:${s.bg||"#EFEADF"};border-color:${s.border||"rgba(38,42,40,.10)"};color:${s.text||"#5B615D"}">${label}</span>`;
+}
+
+function numCell(v, bold) {
+  const s = v < 0.01 ? "&lt;0.01" : v.toFixed(2);
+  return `<td class="num">${bold ? `<strong>${s}%</strong>` : s + "%"}</td>`;
+}
+
+// ── Chart: Championship Odds ─────────────────────────────────────────────────
+(function buildChampChart() {
+  const sorted = [...DATA.teams].sort((a, b) => b.champion - a.champion);
+  const labels = sorted.map(t => t.team);
+  const values = sorted.map(t => t.champion);
+  // Binary past-winner distinction (amber-glass vs. neutral ink-soft) — not
+  // the same thing as the champion-bucket rarity color above.
+  const bgColors = sorted.map(t =>
+    t.is_past_winner ? "rgba(201,138,85,.75)" : "rgba(91,97,93,.45)"
+  );
+  const borderColors = sorted.map(t =>
+    t.is_past_winner ? "#C98A55" : "#5B615D"
+  );
+
+  // Dynamic height: ~26px per bar + fixed overhead
+  const chartH = Math.max(480, sorted.length * 26 + 64);
+  const canvas = document.getElementById("champCanvas");
+  canvas.style.height = chartH + "px";
+
+  new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: bgColors,
+        borderColor: borderColors,
+        borderWidth: 1,
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: ctx => ctx[0].label,
+            label: ctx => ` ${ctx.raw.toFixed(2)}% chance of winning`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid:   { color: "rgba(38,42,40,.12)" },
+          border: { color: "rgba(38,42,40,.20)" },
+          ticks:  { color: "#5B615D", callback: v => v + "%" },
+          title:  { display: true, text: "Championship probability (%)", color: "#5B615D", font: { size: 11 } },
+        },
+        y: {
+          grid:   { display: false },
+          border: { color: "rgba(38,42,40,.20)" },
+          ticks: {
+            color: (ctx) => {
+              const t = sorted[ctx.index];
+              return t && t.is_past_winner ? "#8f5c33" : "#262A28";
+            },
+            font: { size: 12 },
+          },
+        },
+      },
+    },
+  });
+})();
+
+// ── Table: How Far Each Team Went ────────────────────────────────────────────
+(function buildAdvTable() {
+  const body = document.getElementById("advBody");
+  DATA.teams.forEach(t => {
+    const tr = document.createElement("tr");
+    // Store numeric sort values as data attributes on cells
+    tr.innerHTML =
+      teamCell(t.team, t.is_past_winner) +
+      ADV_COLUMNS.map(col => progCell(t[col.key])).join("");
+    const cells = tr.querySelectorAll("td");
+    ADV_COLUMNS.forEach((col, i) => { cells[i + 1].dataset.val = t[col.key]; });
+    body.appendChild(tr);
+  });
+})();
+
+// ── Table: Most Common Exit ──────────────────────────────────────────────────
+(function buildExitTable() {
+  const body = document.getElementById("exitBody");
+  DATA.teams.forEach(t => {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      teamCell(t.team, t.is_past_winner) +
+      `<td data-val="${ROUND_ORDER.indexOf(t.most_likely_exit)}">${roundBadge(t.most_likely_exit)}</td>` +
+      `<td class="num" data-val="${t.most_likely_exit_pct}">${t.most_likely_exit_pct.toFixed(2)}%</td>`;
+    body.appendChild(tr);
+  });
+})();
+
+// ── Table: Full Breakdown ────────────────────────────────────────────────────
+(function buildFullTable() {
+  const body = document.getElementById("fullBody");
+  DATA.teams.forEach(t => {
+    const tr = document.createElement("tr");
+    const buckets = FULL_COLUMNS.map(c => t[c.key]);
+    const maxVal  = Math.max(...buckets);
+    tr.innerHTML =
+      teamCell(t.team, t.is_past_winner) +
+      buckets.map((v, i) => {
+        const style = BUCKET_STYLE[FULL_COLUMNS[i].styleLabel];
+        const txt = v < 0.01 ? "&lt;0.01" : v.toFixed(2);
+        const inner = v === maxVal ? `<strong>${txt}%</strong>` : txt + "%";
+        return `<td class="num bucket-cell" data-val="${v}" style="background:${style.bg};color:${style.text}">${inner}</td>`;
+      }).join("");
+    body.appendChild(tr);
+  });
+})();
+
+// ── Sortable tables ──────────────────────────────────────────────────────────
+document.querySelectorAll("table").forEach(table => {
+  table.querySelectorAll("thead th").forEach(th => {
+    th.addEventListener("click", () => {
+      const col   = parseInt(th.dataset.col, 10);
+      const type  = th.dataset.type; // "s" = string, "n" = number
+      const tbody = table.querySelector("tbody");
+      const rows  = Array.from(tbody.querySelectorAll("tr"));
+
+      // Toggle direction; default to desc on first click
+      const curDir = th.dataset.dir;
+      const dir = curDir === "desc" ? "asc" : "desc";
+
+      // Clear all headers in this table, then set this one
+      table.querySelectorAll("thead th").forEach(h => delete h.dataset.dir);
+      th.dataset.dir = dir;
+
+      rows.sort((a, b) => {
+        const aCells = a.querySelectorAll("td");
+        const bCells = b.querySelectorAll("td");
+        const aCell  = aCells[col];
+        const bCell  = bCells[col];
+
+        let aVal, bVal;
+        if (type === "n") {
+          // Prefer data-val attribute (set explicitly); fall back to text
+          aVal = parseFloat(aCell?.dataset.val ?? aCell?.textContent ?? "0") || 0;
+          bVal = parseFloat(bCell?.dataset.val ?? bCell?.textContent ?? "0") || 0;
+          return dir === "asc" ? aVal - bVal : bVal - aVal;
+        } else {
+          aVal = (aCell?.textContent ?? "").trim().replace(/★/g, "").trim();
+          bVal = (bCell?.textContent ?? "").trim().replace(/★/g, "").trim();
+          // For round names, use ROUND_ORDER if available
+          const aIdx = ROUND_ORDER.indexOf(aVal);
+          const bIdx = ROUND_ORDER.indexOf(bVal);
+          if (aIdx >= 0 && bIdx >= 0) {
+            return dir === "asc" ? aIdx - bIdx : bIdx - aIdx;
+          }
+          return dir === "asc"
+            ? aVal.localeCompare(bVal)
+            : bVal.localeCompare(aVal);
+        }
+      });
+
+      rows.forEach(r => tbody.appendChild(r));
+    });
+  });
+});
+</script>
+
+</body>
+</html>

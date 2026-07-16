@@ -1,5 +1,3 @@
 match_id,round,home_team,away_team,stadium,date
-1,Semi-finals,France,Spain,Dallas Stadium,14-07-2026
-2,Semi-finals,England,W4,Atlanta Stadium,15-07-2026
-3,Third place play-off,L1,L2,Miami Stadium,18-07-2026
-4,Final,W1,W2,New York New Jersey Stadium,19-07-2026
+1,Third place play-off,France,England,Miami Stadium,18-07-2026
+2,Final,Spain,Argentina,New York New Jersey Stadium,19-07-2026

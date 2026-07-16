@@ -1,0 +1,94 @@
+=== cron_pipeline.sh started at 2026-07-16T10:00:01+00:00 ===
+--- git pull ---
+Already up to date.
+--- running pipeline (timeout 20m) ---
+============================================================
+2026 FIFA World Cup — Knockout Phase Monte Carlo Simulator
+============================================================
+
+[Pipeline 1/3] Building dataset (downloading raw data + Elo) …
+
+[1/6] Refreshing raw data …
+  ── Results / shootouts / former names:
+  Downloading results … done  (3,640.4 KB)  →  data/raw/results.csv
+  Downloading shootouts … done  (28.4 KB)  →  data/raw/shootouts.csv
+  Downloading former_names … done  (1.7 KB)  →  data/raw/former_names.csv
+  ── WDI economic indicators:
+  Fetching country list … done  (295 entries)  →  data/raw/wdi/wb_countries.json
+  Fetching SP.POP.TOTL          (Population, total) … done  (17,490 rows, 5,616.3 KB)  →  data/raw/wdi/SP.POP.TOTL.json
+  Fetching NY.GDP.MKTP.CD       (GDP, current US$) … done  (17,490 rows, 5,775.3 KB)  →  data/raw/wdi/NY.GDP.MKTP.CD.json
+  Fetching NY.GDP.PCAP.CD       (GDP per capita, current US$) … done  (17,490 rows, 5,970.0 KB)  →  data/raw/wdi/NY.GDP.PCAP.CD.json
+
+[2/7] Loading and cleaning match results …
+    Dropped 2 unplayed fixture rows (NaN scores)
+    Loaded 49,518 played matches  (1872-11-30 – 2026-07-15)
+
+[3/7] Normalizing team names via former_names.csv …
+    Loaded 36 name-change entries covering 36 distinct former names
+
+[4/7] Merging shootout outcomes …
+    Loaded 683 shootout rows
+    Matched 682 shootout outcomes to match rows
+
+[5/7] Computing Elo ratings …
+    Elo computed for 337 distinct teams across 49,518 matches
+    Written 99,036 rows → data/processed/elo_history.csv
+
+[6/7] Loading WDI economic data …
+    217 non-aggregate WB country entries identified
+    SP.POP.TOTL (Population, total): 14,322 data rows
+    NY.GDP.MKTP.CD (GDP, current US$): 14,322 data rows
+    NY.GDP.PCAP.CD (GDP per capita, current US$): 14,322 data rows
+    WDI combined: 217 countries, 14,322 country-year rows
+
+[7/7] Joining economic data to matches …
+    home economic data: 44,647/49,518 rows resolved
+    away economic data: 44,272/49,518 rows resolved
+
+============================================================
+  Written:      data/processed/matches.csv
+  Rows:         49,518
+  Shootouts:    682 matches went to penalties
+  Date range:   1872-11-30 – 2026-07-15
+============================================================
+
+[Pipeline 2/3] Training match-outcome model …
+[1/3] Building features …
+  Loading matches.csv …
+  Computing form features …
+    form: added 10 columns to 49,518 rows
+  Computing H2H features …
+    h2h: 41,961/49,518 rows have prior H2H history
+  Computing context features …
+    context: added is_neutral and match_importance to 49,518 rows
+  Deriving ratio features and outcome target …
+  Written 49,518 rows → data/processed/features.parquet
+[2/3] Training on 44,840 matches (val: 3,255) …
+  LogisticRegression  val log-loss: 0.8954
+  HGBT                val log-loss: 0.8921
+  Winner: HGBT
+[3/3] Model saved → data/processed/model.pkl
+
+[Pipeline 2b/3] Training shootout model …
+  Shootout model trained on 682 historical shootouts
+  Baseline home win rate : 0.540
+  Elo-gap coefficient    : 0.001413  (expected ~0, near coin-flip)
+  Saved → data/processed/shootout_model.pkl
+
+[Pipeline 3/3] Running 1,000,000 Monte Carlo simulations …
+  Simulating Third place play-off (1 match) …
+  Simulating Final (1 match) …
+
+Team                              R32%    R16%     QF%     SF%    3rd%     RU%    Win%
+--------------------------------------------------------------------------------------
+France                            0.00    0.00    0.00   43.37   56.63  100.00  100.00
+England                           0.00    0.00    0.00   56.63   43.37    0.00    0.00
+--------------------------------------------------------------------------------------
+
+[Pipeline 4/4] Building static dashboard …
+
+Dashboard built -> /home/lalutir/world-cup-predictor/site/current/index.html  (latest round: final)
+Landing page   -> /home/lalutir/world-cup-predictor/site/index.html
+
+Done.
+=== pipeline succeeded, site/ rebuilt ===

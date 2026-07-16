@@ -1,0 +1,42 @@
+{
+  "generated_at": "2026-07-16T10:00:34.288926+00:00",
+  "n_sims": 1000000,
+  "round_slug": "final",
+  "round_label": "Final",
+  "teams": [
+    {
+      "team": "France",
+      "is_past_winner": true,
+      "exit_r32": 0.0,
+      "exit_r16": 0.0,
+      "exit_qf": 0.0,
+      "exit_sf": 43.3726,
+      "third_place": 56.6274,
+      "runner_up": 100.0,
+      "champion": 100.0,
+      "p_reach_r16": 100.0,
+      "p_reach_qf": 100.0,
+      "p_reach_sf": 100.0,
+      "p_reach_final": 200.0,
+      "most_likely_exit": "Runner-up",
+      "most_likely_exit_pct": 100.0
+    },
+    {
+      "team": "England",
+      "is_past_winner": true,
+      "exit_r32": 0.0,
+      "exit_r16": 0.0,
+      "exit_qf": 0.0,
+      "exit_sf": 56.6274,
+      "third_place": 43.3726,
+      "runner_up": 0.0,
+      "champion": 0.0,
+      "p_reach_r16": 100.0,
+      "p_reach_qf": 100.0,
+      "p_reach_sf": 100.0,
+      "p_reach_final": 0.0,
+      "most_likely_exit": "Semi-final",
+      "most_likely_exit_pct": 56.6274
+    }
+  ]
+}
