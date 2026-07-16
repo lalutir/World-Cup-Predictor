@@ -229,18 +229,25 @@ class BracketResolver:
         return rounds[0][1] if rounds else []
 
     def all_initial_teams(self) -> list[str]:
-        """Return all literal team names from the opening round, in order.
+        """Return every literal team name appearing anywhere in the bracket.
 
-        Teams are collected left-to-right (home before away) across matches
-        sorted by match_id.  Duplicates are removed while preserving order.
+        Teams are collected across *all* rounds (in bracket order, then by
+        match_id, home before away) rather than just the opening round --
+        once earlier rounds fully resolve, their fixtures.csv rows are often
+        deleted entirely (see the Known Data Quirks note in CLAUDE.md), which
+        can leave literal team names appearing directly in later rounds (e.g.
+        the Third place play-off and Final each holding their own literal
+        names) with no W/L chain connecting them back to an earlier round.
+        Duplicates are removed while preserving order of first appearance.
         """
         seen: set[str] = set()
         teams: list[str] = []
-        for match in self.first_round_matches():
-            for slot in (match.home_slot, match.away_slot):
-                if not self.is_placeholder(slot) and slot not in seen:
-                    seen.add(slot)
-                    teams.append(slot)
+        for _round_name, matches in self.rounds_ordered():
+            for match in matches:
+                for slot in (match.home_slot, match.away_slot):
+                    if not self.is_placeholder(slot) and slot not in seen:
+                        seen.add(slot)
+                        teams.append(slot)
         return teams
 
     def detect_frontier_round(self) -> str:

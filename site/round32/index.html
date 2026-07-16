@@ -652,7 +652,7 @@ const BUCKET_STYLE = {
   "Round of 32":   { bg: "rgba(185,207,199,.30)", border: "rgba(138,168,157,.50)", text: "#4B6B62" },
   "Round of 16":   { bg: "rgba(138,168,157,.30)", border: "rgba(75,107,98,.45)",   text: "#3f5951" },
   "Quarter-final": { bg: "rgba(75,107,98,.20)",   border: "rgba(75,107,98,.50)",   text: "#3a5049" },
-  "Semi-final":    { bg: "rgba(201,138,85,.18)",  border: "rgba(201,138,85,.40)",  text: "#a06a3d" },
+  "4th Place":     { bg: "rgba(201,138,85,.18)",  border: "rgba(201,138,85,.40)",  text: "#a06a3d" },
   "3rd Place":     { bg: "rgba(201,138,85,.26)",  border: "rgba(201,138,85,.50)",  text: "#8f5c33" },
   "Runner-up":     { bg: "rgba(201,138,85,.34)",  border: "rgba(201,138,85,.60)",  text: "#7a4d2a" },
   "Champion":      { bg: "rgba(62,90,130,.22)",   border: "rgba(62,90,130,.65)",   text: "#3E5A82" },
@@ -660,7 +660,7 @@ const BUCKET_STYLE = {
 
 // Round sort order (for sorting by round name)
 const ROUND_ORDER = [
-  "Round of 32","Round of 16","Quarter-final","Semi-final","3rd Place","Runner-up","Champion"
+  "Round of 32","Round of 16","Quarter-final","4th Place","3rd Place","Runner-up","Champion"
 ];
 
 // Column sets for this round's pages -- computed server-side in
@@ -668,7 +668,7 @@ const ROUND_ORDER = [
 // columns are live predictions vs. already-decided-in-real-life depends on
 // how far the bracket has progressed. See that module for the hide rule.
 const ADV_COLUMNS = [{"key":"p_reach_r16","header":"Reach R16"},{"key":"p_reach_qf","header":"Reach QF"},{"key":"p_reach_sf","header":"Reach SF"},{"key":"p_reach_final","header":"Reach Final"},{"key":"champion","header":"Win It"}];
-const FULL_COLUMNS = [{"key":"exit_r32","header":"Exit R32","styleLabel":"Round of 32"},{"key":"exit_r16","header":"Exit R16","styleLabel":"Round of 16"},{"key":"exit_qf","header":"Exit QF","styleLabel":"Quarter-final"},{"key":"exit_sf","header":"Exit SF","styleLabel":"Semi-final"},{"key":"third_place","header":"3rd Place","styleLabel":"3rd Place"},{"key":"runner_up","header":"Runner-up","styleLabel":"Runner-up"},{"key":"champion","header":"Champion","styleLabel":"Champion"}];
+const FULL_COLUMNS = [{"key":"exit_r32","header":"Exit R32","styleLabel":"Round of 32"},{"key":"exit_r16","header":"Exit R16","styleLabel":"Round of 16"},{"key":"exit_qf","header":"Exit QF","styleLabel":"Quarter-final"},{"key":"exit_sf","header":"Exit SF","styleLabel":"4th Place"},{"key":"third_place","header":"3rd Place","styleLabel":"3rd Place"},{"key":"runner_up","header":"Runner-up","styleLabel":"Runner-up"},{"key":"champion","header":"Champion","styleLabel":"Champion"}];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function teamCell(team, isPastWinner) {

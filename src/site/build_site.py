@@ -54,7 +54,7 @@ _BUCKET_LABELS: dict[str, str] = {
     "exit_r32":    "Round of 32",
     "exit_r16":    "Round of 16",
     "exit_qf":     "Quarter-final",
-    "exit_sf":     "Semi-final",
+    "exit_sf":     "4th Place",
     "third_place": "3rd Place",
     "runner_up":   "Runner-up",
     "champion":    "Champion",
@@ -85,7 +85,7 @@ _EXIT_COLUMNS = [
     {"key": "exit_r32", "header": "Exit R32", "styleLabel": "Round of 32",   "decided_by_round_index": 0},
     {"key": "exit_r16", "header": "Exit R16", "styleLabel": "Round of 16",   "decided_by_round_index": 1},
     {"key": "exit_qf",  "header": "Exit QF",  "styleLabel": "Quarter-final", "decided_by_round_index": 2},
-    {"key": "exit_sf",  "header": "Exit SF",  "styleLabel": "Semi-final",    "decided_by_round_index": 3},
+    {"key": "exit_sf",  "header": "Exit SF",  "styleLabel": "4th Place",    "decided_by_round_index": 3},
 ]
 _ALWAYS_EXIT_COLUMNS = [
     {"key": "third_place", "header": "3rd Place", "styleLabel": "3rd Place"},

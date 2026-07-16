@@ -260,7 +260,14 @@ class MonteCarloSimulator:
         if slot.startswith("L") and slot[1:].isdigit():
             return loser_of[int(slot[1:])]
         # Literal team name: all sims agree on the same team.
-        idx = team_to_idx.get(slot, 0)
+        if slot not in team_to_idx:
+            raise KeyError(
+                f"Team {slot!r} not found in the bracket's team roster. "
+                "all_initial_teams() should have collected every literal team "
+                "name across the whole fixtures file -- check for a typo in "
+                "fixtures.csv or a bug in BracketResolver.all_initial_teams()."
+            )
+        idx = team_to_idx[slot]
         return np.full(self.n_sims, idx, dtype=np.int32)
 
     def run(
